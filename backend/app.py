@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI
-from .fetch_osm_data import fetch_osm_data
 from fastapi.middleware.cors import CORSMiddleware
+from fetch_osm_data import fetch_osm_data
 
 app = FastAPI()
 
@@ -25,4 +25,9 @@ def fetch_osm_data_endpoint(placename: str):
         return {"status": 200, "data": data}
     except Exception as e:
         return {"status": 500, "error": str(e)}
+
+if __name__ == "__main__":
+    import uvicorn
+    
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
     
