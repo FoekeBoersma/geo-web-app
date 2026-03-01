@@ -18,6 +18,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to the OSM Data Fetcher API!"}
+
 @app.get("/fetch_osm_data")
 def fetch_osm_data_endpoint(placename: str):
     try:
