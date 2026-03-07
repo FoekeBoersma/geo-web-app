@@ -75,11 +75,6 @@ async def get_route(origin: str, destination: str) -> dict:
         f"?start={lon1},{lat1}&end={lon2},{lat2}&format=geojson"
         )
 
-        # construct route payload
-        # route_payload = {
-        #     "coordinates": [[lon1, lat1], [lon2, lat2]],
-        #     "format": "geojson"
-        # }
         r3 = await client.get(
             route_url,
             headers={"Authorization": ORS_API_KEY}
