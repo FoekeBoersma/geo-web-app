@@ -103,9 +103,49 @@
     placeInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') fetchPlace(placeInput.value.trim());
     });
+    document.getElementById('route-btn').addEventListener('click', fetchRoute);
+    document.getElementById('destination').addEventListener('keypress', e => {
+      if (e.key === 'Enter') fetchRoute();
+    });
 
     // initial search
     fetchPlace(placeInput.value.trim());
+
+    let routeLayer = L.layerGroup().addTo(map);
+
+    async function fetchRoute() {
+      const origin = document.getElementById("origin").value.trim();
+      const destination = document.getElementById("destination").value.trim();
+
+      if (!origin || !destination) {
+        statusEl.textContent = "Please enter both origin and destination!";
+        return;
+      }
+
+      statusEl.textContent = "Fetching route...";
+      routeLayer.clearLayers();
+
+      try {
+        const url = `http://127.0.0.1:8000/ors-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+        const res = await fetch(url);
+
+        if (!res.ok) throw new Error(res.statusText);
+
+        const data = await res.json()
+
+        const coords = data.route.features[0].geometry.coordinates;
+
+        const latlngs = coords.map(c => [c[1], c[[0]]]); // ORS has different format [lon, lat] than Leaflet [lat, lon]
+
+        const polyline = L.polyline(latlngs, { color: "blue", wieght: 4 }).addTo(routeLayer);
+        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+
+        statusEl.textContent = `Route loaded (${origin} → ${destination})`;
+      } catch (err) {
+        statusEl.textContent = 'Error fetching route: ' + err.message;
+      }
+      
+    }
   </script>
 </body>
 </html>
