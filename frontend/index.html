@@ -25,6 +25,14 @@
     <span id="status" style="margin-left:12px;color:#555;"></span>
   </div>
 
+  <div id="route-controls" style="padding:8px; background: rgb(245, 255, 238); display:flex; gap:8px; align-items:center;"></div>
+    <label for="origin">Route:</label>
+    <input id="origin" type="search" placeholder="Origin e.g. Amsterdam " style="padding:8px; background: rgb(230, 255, 211);"/>
+    <span>→</span>
+    <input id="destination" type="search" placeholder="Destination e.g. Rotterdam" style="padding:8px; background: rgb(192, 197, 240);"/>
+    <button id="route-btn">Get Route</button>
+  </div>
+
   <div id="map"></div>
 
   <!-- Leaflet JS (before script but after DOM) -->
