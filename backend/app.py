@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from .fetch_osm_data import fetch_osm_data
 from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 import os
 
 app = FastAPI()
+
+load_dotenv() # load environment variables from .env file
 
 ORS_API_KEY = os.getenv("ORS_API_KEY")
 ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
@@ -53,3 +55,37 @@ async def get_route(origin: str, destination: str) -> dict:
             geocode_url,
             params={"api_key": ORS_API_KEY, "text": origin}
         )
+        data1 = r1.json()
+        if not data1["features"]:
+            raise HTTPException(404, f"Destination '{origin}' not found")
+        lon1, lat1 = data1["features"][0]["geometry"]["coordinates"]
+
+        # destination geocoding
+        r2 = await client.get(
+            geocode_url,
+            params={"api_key": ORS_API_KEY, "text": destination}
+        )
+        data2 = r2.json()
+        if not data2["features"]:
+            raise HTTPException(404, f"Destination '{destination}' not found")
+        lon2, lat2 = data2["features"][0]["geometry"]["coordinates"]
+
+        # construct route payload
+        route_payload = {
+            "coordinates": [[lon1, lat1], [lon2, lat2]]
+        }
+        r3 = await client.post(
+            ORS_URL,
+            json = route_payload,
+            headers={"Authorization": ORS_API_KEY}
+        )
+        if r3.status_code != 200:
+            raise HTTPException(r3.status_code, f"ORS API error: {r3.text}")
+        
+        route_data = r3.json()
+
+    return {
+        "origin": origin,
+        "destination": destination,
+        "route": route_data
+    }
