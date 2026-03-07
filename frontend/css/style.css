@@ -18,6 +18,14 @@ body {
     background: rgb(245, 255, 238)
 }
 
+#route-download {
+    padding: 8px;
+    background: rgb(248, 228, 172);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
 #map {
     flex: 1;
 }
