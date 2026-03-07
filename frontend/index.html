@@ -7,14 +7,7 @@
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <style>
-    body { font-family: Arial, sans-serif; margin: 0; display:flex; flex-direction:column; height:100vh; }
-    #controls { padding:8px; background:#f5f5f5; display:flex; gap:8px; align-items:center; }
-    #map { flex:1; }
-    input[type="search"] { padding:6px; width:260px; }
-    button { padding:6px 10px; }
-  </style>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
@@ -22,14 +15,14 @@
     <label for="place">Place:</label>
     <input id="place" type="search" placeholder="e.g. Paris" value="Paris" />
     <button id="search">Search</button>
-    <span id="status" style="margin-left:12px;color:#555;"></span>
+    <span id="status" ></span>
   </div>
 
-  <div id="route-controls" style="padding:8px; background: rgb(245, 255, 238); display:flex; gap:8px; align-items:center;">
+  <div id="route-controls">
     <label for="origin">Route:</label>
-    <input id="origin" type="search" placeholder="Origin e.g. Amsterdam " style="padding:8px; background: rgb(230, 255, 211);"/>
+    <input id="origin" type="search" placeholder="Origin e.g. Amsterdam "/>
     <span>→</span>
-    <input id="destination" type="search" placeholder="Destination e.g. Rotterdam" style="padding:8px; background: rgb(192, 197, 240);"/>
+    <input id="destination" type="search" placeholder="Destination e.g. Rotterdam"/>
     <button id="route-btn">Get Route</button>
   </div>
 
@@ -37,114 +30,6 @@
 
   <!-- Leaflet JS (before script but after DOM) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <script>
-    const map = L.map('map').setView([20,0], 2);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-
-    const statusEl = document.getElementById('status');
-    const searchBtn = document.getElementById('search');
-    const placeInput = document.getElementById('place');
-    let markersLayer = L.layerGroup().addTo(map);
-
-    async function fetchPlace(place) {
-      statusEl.textContent = 'Loading…';
-      markersLayer.clearLayers();
-
-      try {
-        const url = `http://127.0.0.1:8000/fetch_osm_data?placename=${encodeURIComponent(place)}`;
-        const res = await fetch(url);
-
-        if (!res.ok) throw new Error(res.statusText);
-
-        const payload = await res.json();
-        const data = payload.data ?? payload;
-
-        if (!Array.isArray(data) || data.length === 0) {
-          statusEl.textContent = 'No results';
-          return;
-        }
-
-        const bounds = [];
-
-        data.forEach(item => {
-          const lat = item.lat, lon = item.lon;
-          const name = item.name || place;
-
-          if (lat == null || lon == null) return;
-
-          L.marker([lat, lon]).addTo(markersLayer).bindPopup(name);
-
-          if (item.bbox) {
-            bounds.push([item.bbox.south, item.bbox.west]);
-            bounds.push([item.bbox.north, item.bbox.east]);
-          } else {
-            bounds.push([lat, lon]);
-          }
-        });
-
-        if (bounds.length) {
-          map.fitBounds(bounds, { padding: [20,20] });
-          statusEl.textContent = `Found ${markersLayer.getLayers().length} result(s)`;
-        } else {
-          statusEl.textContent = 'Results had no coordinates';
-        }
-
-      } catch (err) {
-        statusEl.textContent = 'Error: ' + err.message;
-      }
-    }
-
-    searchBtn.addEventListener('click', () => fetchPlace(placeInput.value.trim()));
-    placeInput.addEventListener('keypress', e => {
-      if (e.key === 'Enter') fetchPlace(placeInput.value.trim());
-    });
-    document.getElementById('route-btn').addEventListener('click', fetchRoute);
-    document.getElementById('destination').addEventListener('keypress', e => {
-      if (e.key === 'Enter') fetchRoute();
-    });
-
-    // initial search
-    fetchPlace(placeInput.value.trim());
-
-    let routeLayer = L.layerGroup().addTo(map);
-
-    async function fetchRoute() {
-      const origin = document.getElementById("origin").value.trim();
-      const destination = document.getElementById("destination").value.trim();
-
-      if (!origin || !destination) {
-        statusEl.textContent = "Please enter both origin and destination!";
-        return;
-      }
-
-      statusEl.textContent = "Fetching route...";
-      routeLayer.clearLayers();
-
-      try {
-        const url = `http://127.0.0.1:8000/ors-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
-        const res = await fetch(url);
-
-        if (!res.ok) throw new Error(res.statusText);
-
-        const data = await res.json()
-
-        const coords = data.route.features[0].geometry.coordinates;
-        const latlngs = coords.map(c => [c[1], c[[0]]]); // ORS has different format [lon, lat] than Leaflet [lat, lon]
-
-        const polyline = L.polyline(latlngs, { color: "blue", wieght: 4 }).addTo(routeLayer);
-        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
-
-        statusEl.textContent = `Route loaded (${origin} → ${destination})`;
-      } catch (err) {
-        statusEl.textContent = 'Error fetching route: ' + err.message;
-      }
-      
-    }
-  </script>
+  <script src="js/main.js"></script>
 </body>
 </html>
