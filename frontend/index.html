@@ -25,6 +25,14 @@
     <span id="status" style="margin-left:12px;color:#555;"></span>
   </div>
 
+  <div id="route-controls" style="padding:8px; background: rgb(245, 255, 238); display:flex; gap:8px; align-items:center;">
+    <label for="origin">Route:</label>
+    <input id="origin" type="search" placeholder="Origin e.g. Amsterdam " style="padding:8px; background: rgb(230, 255, 211);"/>
+    <span>→</span>
+    <input id="destination" type="search" placeholder="Destination e.g. Rotterdam" style="padding:8px; background: rgb(192, 197, 240);"/>
+    <button id="route-btn">Get Route</button>
+  </div>
+
   <div id="map"></div>
 
   <!-- Leaflet JS (before script but after DOM) -->
@@ -95,9 +103,48 @@
     placeInput.addEventListener('keypress', e => {
       if (e.key === 'Enter') fetchPlace(placeInput.value.trim());
     });
+    document.getElementById('route-btn').addEventListener('click', fetchRoute);
+    document.getElementById('destination').addEventListener('keypress', e => {
+      if (e.key === 'Enter') fetchRoute();
+    });
 
     // initial search
     fetchPlace(placeInput.value.trim());
+
+    let routeLayer = L.layerGroup().addTo(map);
+
+    async function fetchRoute() {
+      const origin = document.getElementById("origin").value.trim();
+      const destination = document.getElementById("destination").value.trim();
+
+      if (!origin || !destination) {
+        statusEl.textContent = "Please enter both origin and destination!";
+        return;
+      }
+
+      statusEl.textContent = "Fetching route...";
+      routeLayer.clearLayers();
+
+      try {
+        const url = `http://127.0.0.1:8000/ors-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+        const res = await fetch(url);
+
+        if (!res.ok) throw new Error(res.statusText);
+
+        const data = await res.json()
+
+        const coords = data.route.features[0].geometry.coordinates;
+        const latlngs = coords.map(c => [c[1], c[[0]]]); // ORS has different format [lon, lat] than Leaflet [lat, lon]
+
+        const polyline = L.polyline(latlngs, { color: "blue", wieght: 4 }).addTo(routeLayer);
+        map.fitBounds(polyline.getBounds(), { padding: [20, 20] });
+
+        statusEl.textContent = `Route loaded (${origin} → ${destination})`;
+      } catch (err) {
+        statusEl.textContent = 'Error fetching route: ' + err.message;
+      }
+      
+    }
   </script>
 </body>
 </html>

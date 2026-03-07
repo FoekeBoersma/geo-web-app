@@ -2,3 +2,6 @@
 .python-version
 backend/__pycache__
 python-multipart
+.env
+.vscode
+cache
