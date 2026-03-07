@@ -11,7 +11,7 @@ app = FastAPI()
 load_dotenv() # load environment variables from .env file
 
 ORS_API_KEY = os.getenv("ORS_API_KEY")
-ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car"
+ORS_URL = "https://api.openrouteservice.org/v2/directions/driving-car?format=geojson"
 
 '''
 Cross-Origin Resource Sharing to allow frontend 
@@ -70,13 +70,18 @@ async def get_route(origin: str, destination: str) -> dict:
             raise HTTPException(404, f"Destination '{destination}' not found")
         lon2, lat2 = data2["features"][0]["geometry"]["coordinates"]
 
+        route_url = (
+        f"https://api.openrouteservice.org/v2/directions/driving-car"
+        f"?start={lon1},{lat1}&end={lon2},{lat2}&format=geojson"
+        )
+
         # construct route payload
-        route_payload = {
-            "coordinates": [[lon1, lat1], [lon2, lat2]]
-        }
-        r3 = await client.post(
-            ORS_URL,
-            json = route_payload,
+        # route_payload = {
+        #     "coordinates": [[lon1, lat1], [lon2, lat2]],
+        #     "format": "geojson"
+        # }
+        r3 = await client.get(
+            route_url,
             headers={"Authorization": ORS_API_KEY}
         )
         if r3.status_code != 200:
