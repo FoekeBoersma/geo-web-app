@@ -17,12 +17,12 @@ downloadBtn.addEventListener('click', () => {
 
     const blob = new Blob([JSON.stringify(lastRouteGeoJSON, null, 2)], {
         type: "application/geo+json"
-    });
+    }); // create file in memory
 
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
+    const url = URL.createObjectURL(blob); // create a temp URL to file
+ 
+    const a = document.createElement('a'); // create a link element
+    a.href = url; // set link to blob-URL
     a.download = `route${encodeURIComponent(lastOrigin)}_${encodeURIComponent(lastDestination)}.geojson`
     a.click()
 
