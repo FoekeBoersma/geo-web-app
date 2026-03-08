@@ -3,7 +3,7 @@ import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { map } from "./map.js";
 
-// intial UI sync
+// initial UI sync
 updateUI();
 
 const searchBtn = document.getElementById('search');
