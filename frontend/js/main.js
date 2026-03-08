@@ -2,6 +2,12 @@ import { fetchPlace, fetchRoute } from './api.js';
 import { updateUI } from './ui.js';
 import { map } from "./map.js";
 
+// intial UI sync
+updateUI();
+
+console.log("origin:", state.origin);
+console.log("destination:", state.destination);
+
 const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');

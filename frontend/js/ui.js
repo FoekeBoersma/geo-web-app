@@ -18,4 +18,5 @@ export function updateUI() {
 
     // route button only enabled when we have both origin and destination
     document.getElementById("route-btn").disabled = !(state.origin && state.destination);
+    document.getElementById("download-btn").disabled = !state.route;
 }
