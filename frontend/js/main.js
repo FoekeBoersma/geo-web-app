@@ -1,12 +1,10 @@
 import { fetchPlace, fetchRoute } from './api.js';
 import { updateUI } from './ui.js';
+import { state, setOrigin, setDestination } from "./state.js";
 import { map } from "./map.js";
 
 // intial UI sync
 updateUI();
-
-console.log("origin:", state.origin);
-console.log("destination:", state.destination);
 
 const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
@@ -21,6 +19,21 @@ routeBtn.addEventListener('click', async() => {
     await fetchRoute();
     updateUI();
 });
+
+document.getElementById('origin').addEventListener('input', (e) => {
+    const value = e.target.value.trim()
+    
+    console.log("origin:", value);
+    setOrigin(value ? { name: value } : null );
+    updateUI();
+})
+
+document.getElementById('destination').addEventListener('input', (e) => {
+    const value = e.target.value.trim();
+    setDestination(value ? { name: value } : null);
+    updateUI();
+})
+
 downloadBtn.addEventListener('click', () => {
     updateUI();
     statusEl.textContent = state.loading ? "Downloading route..." : "";
