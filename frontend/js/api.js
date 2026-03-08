@@ -1,31 +1,64 @@
 import { showMarkers, showRoute } from "./map.js"
+import { setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
 
 export async function fetchPlace() {
     const place = document.getElementById("place").value.trim(); // "Amsterdam " > "Amsterdam"
+    if (!place) {
+        setError("Please enter a place name.");
+        return;
+    }
     const url = `http://127.0.0.1:8000/fetch_osm_data?placename=${encodeURIComponent(place)}`;
 
-    const res = await fetch(url);
-    const payload = await res.json();
+    try {
+        setLoading(true);
 
-    showMarkers(payload.data ?? payload)
+        const res = await fetch(url);
+        const payload = await res.json();
+
+        const data = payload.data ?? payload;
+
+        setOrigin({
+            name: place,
+            lat: data.lat,
+            lon: data.lon
+        });
+        
+        // update map
+        showMarkers(data);
+    } catch (err) {
+        setError("Failed to fetch place data. Please try again.");
+    } finally {
+        setLoading(false);
+    }
 }
-
-export let lastRouteGeoJSON = null;
-export let lastOrigin = null;
-export let lastDestination = null;
 
 export async function fetchRoute() {
     const origin = document.getElementById("origin").value.trim();
     const destination = document.getElementById("destination").value.trim();
 
-    lastOrigin = origin
-    lastDestination = destination
+    if (!origin || !destination) {
+        setError("Please enter both origin and destination.");
+        return;
+    }
 
     const url = `http://127.0.0.1:8000/ors-route?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
 
-    const res = await fetch(url);
-    const geojson = await res.json();
+    try {
+        setLoading(true);
 
-    lastRouteGeoJSON = geojson.route;
-    showRoute(geojson.route.features[0].geometry.coordinates)
+        const res = await fetch(url);
+        const geojson = await res.json();
+
+        // update state
+        setOrigin({ name: origin });
+        setDestination({ name: destination })
+        setRoute(geojson.route);
+
+        const coords = geojson.route.features[0].geometry.coordinates;
+        showRoute(coords);
+    } catch (err) {
+        setError("Failed to fetch route. Please try again.");
+    } finally {
+        setLoading(false)
+    }
 }

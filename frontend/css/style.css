@@ -30,6 +30,12 @@ body {
     flex: 1;
 }
 
+#error {
+    padding: 8px;
+    background: rgb(255, 230, 230);
+    color: rgb(170, 0, 0);
+}
+
 #origin {
     padding: 8px;
     background: rgb(230, 255, 211)
