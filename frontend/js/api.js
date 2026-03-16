@@ -62,3 +62,13 @@ export async function fetchRoute() {
         setLoading(false)
     }
 }
+
+await fetch("/log-route", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+        origin,
+        destination,
+        geojson: JSON.stringify(geojson.route)
+    })
+})
