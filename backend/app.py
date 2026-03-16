@@ -1,12 +1,28 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, HTTPException
+from fastapi.concurrency import asynccontextmanager
+from sqlmodel import Session
+
+from backend.db import init_db
 from .fetch_osm_data import fetch_osm_data
 from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
 from dotenv import load_dotenv
 import os
+from models import RouteLog
+from db import engine, init_db
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # startup
+    init_db()
+    yield
+    # Shutdown (optional)
+    # close connections, cleanup, etc.
+
+    
+app = FastAPI(lifespan=lifespan)
 
 load_dotenv() # load environment variables from .env file
 
@@ -89,3 +105,16 @@ async def get_route(origin: str, destination: str) -> dict:
         "destination": destination,
         "route": route_data
     }
+
+app.post("/log-route")
+def log_route(origin: str, destination: str, geojson: str):
+    with Session(engine) as session:
+        entry = RouteLog(
+            origin=origin,
+            destination=destination,
+            geojson=geojson
+        )
+        session.add(entry)
+        session.commit()
+        session.refresh(entry)
+        return {"status": "saved", "id": entry.id}
