@@ -9,8 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
 from dotenv import load_dotenv
 import os
-from models import RouteLog
-from db import engine, init_db
+from .models import RouteLog
+from .db import engine, init_db
 
 
 @asynccontextmanager
@@ -106,7 +106,7 @@ async def get_route(origin: str, destination: str) -> dict:
         "route": route_data
     }
 
-app.post("/log-route")
+@app.post("/log-route")
 def log_route(origin: str, destination: str, geojson: str):
     with Session(engine) as session:
         entry = RouteLog(
