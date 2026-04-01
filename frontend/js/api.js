@@ -56,9 +56,22 @@ export async function fetchRoute() {
 
         const coords = geojson.route.features[0].geometry.coordinates;
         showRoute(coords);
+
+        // Post route log to backend (FastAPI at 8000) after successful route fetch + map update
+        await fetch("http://127.0.0.1:8000/log-route", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                origin,
+                destination,
+                geojson: JSON.stringify(geojson.route)
+            })
+        });
     } catch (err) {
         setError("Failed to fetch route. Please try again.");
     } finally {
         setLoading(false)
     }
 }
+
+// Log route call moved into fetchRoute (post after successful route fetch).
