@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import FastAPI, HTTPException
 from fastapi.concurrency import asynccontextmanager
-from sqlmodel import Session
+from sqlmodel import Session, SQLModel
 
 from backend.db import init_db
 from .fetch_osm_data import fetch_osm_data
@@ -11,6 +11,11 @@ from dotenv import load_dotenv
 import os
 from .models import RouteLog
 from .db import engine, init_db
+
+class RouteLogCreate(SQLModel):
+    origin: str
+    destination: str
+    geojson: str
 
 
 @asynccontextmanager
@@ -107,12 +112,12 @@ async def get_route(origin: str, destination: str) -> dict:
     }
 
 @app.post("/log-route")
-def log_route(origin: str, destination: str, geojson: str):
+def log_route(payload: RouteLogCreate):
     with Session(engine) as session:
         entry = RouteLog(
-            origin=origin,
-            destination=destination,
-            geojson=geojson
+            origin=payload.origin,
+            destination=payload.destination,
+            geojson=payload.geojson
         )
         session.add(entry)
         session.commit()
