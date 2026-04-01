@@ -5,4 +5,4 @@ python-multipart
 .env
 .vscode
 cache
-app.db
+*.db
