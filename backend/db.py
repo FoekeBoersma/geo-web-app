@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, create_engine
 
 ROUTE_DATABASE_URL = "sqlite:///./route.db" 
-POINTS_DATABASE_URL = "sqlite:///.points.db"
+POINTS_DATABASE_URL = "sqlite:///./points.db"
 
 route_engine = create_engine(
     ROUTE_DATABASE_URL,

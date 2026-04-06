@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, Form, File, StaticFiles, FileResponse
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
@@ -12,13 +12,9 @@ import httpx # useful for async requests; parallel API calls; potentially faster
 from dotenv import load_dotenv
 import os
 from .models import RouteLog
-from .db import route_engine, points_engine, init_db
-import UploadFile, File   
-import Form
-import StaticFiles
-import FileResponse
+from .db import route_engine, points_engine, init_db  
 import shutil
-import PointOfInterest
+from .models import PointOfInterest
 
 
 class RouteLogCreate(SQLModel):
@@ -139,7 +135,14 @@ def log_route(payload: RouteLogCreate):
         session.commit()
         session.refresh(entry)
         return {"status": "saved", "id": entry.id}
-    
+
+@app.get("/get-points-of-interest")
+def get_points_of_interest():
+    with Session(points_engine) as session:
+        points = session.query(PointOfInterest).all()
+        return points
+
+
 @app.post("/create-point-of-interest")
 def create_point_of_interest(latitude: float = Form(...), longitude: float = Form(...),
     name: Optional[str] = Form(None), description: Optional[str] = Form(None), 

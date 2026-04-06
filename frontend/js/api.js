@@ -74,10 +74,11 @@ export async function fetchRoute() {
     }
 }
 
-export async function createPoint(lat, lon, description, pictureFile) {
+export async function createPoint(latitude, longitude, name, description, pictureFile) {
     const formData = new FormData();
-    formData.append("lat", lat);
-    formData.append("lon", lon);
+    formData.append("latitude", latitude);
+    formData.append("longitude", longitude);
+    formData.append("name", name);
     if (description) formData.append("description", description);
     if (pictureFile) formData.append("picture", pictureFile);
 
