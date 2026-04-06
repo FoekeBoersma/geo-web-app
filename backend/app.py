@@ -153,7 +153,7 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         picture_path = file_path
     with Session(points_engine) as session: # use Session with points_engine to save to points.db
         point = PointOfInterest(
-            latitute=latitude,
+            latitude=latitude,
             longitude=longitude,
             name=name,
             description=description,
