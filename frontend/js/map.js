@@ -84,12 +84,12 @@ map.on("click", (e) => {
 
 function showPointForm(latitude, longitude) {
     const formHtml = `
-    <div id="point-form" style="position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid blackl z-index: 1000;">
-    <h3>Add Point of Interest</h3>
-    <label>Name: <input type="text" id="poi-name"></label><br>
-    <label>Description: <input type="text" id="poi-desc"></label><br>
-    <label>Picture: <input type="file" id="poi-pic" accept="image/*"></label><br>
-    <button id="save-poi">Save</button>
+    <div id="point-form" style="position: fixed; top: 90px; right: 20px; background: white; padding: 12px; border: 1px solid #333; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; width: 280px;">
+    <h3 style="margin-top:0; margin-bottom:10px; font-size:1rem;">Add Point of Interest</h3>
+    <label style="display:block; margin-bottom:6px; font-size:0.9rem;">Name: <input type="text" id="poi-name" style="width:100%; box-sizing:border-box;"></label>
+    <label style="display:block; margin-bottom:6px; font-size:0.9rem;">Description: <input type="text" id="poi-desc" style="width:100%; box-sizing:border-box;"></label>
+    <label style="display:block; margin-bottom:10px; font-size:0.9rem;">Picture: <input type="file" id="poi-pic" accept="image/*"></label>
+    <button id="save-poi" style="margin-right:8px;">Save</button>
     <button id="cancel-poi">Cancel</button>
     </div>
     `;
