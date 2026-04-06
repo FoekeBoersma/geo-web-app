@@ -62,10 +62,18 @@ export function showPointsOfInterest(pois) {
     pois.forEach(p => {
         if (!p.latitude || !p.longitude ) return;
 
+        const title = p.name || p.description || "Point of Interest";
+        const descriptionHtml = p.description ? `<div style="margin-top:4px;">${p.description}</div` : "";
+        const imageHtml = p.picture_path 
+            ? `<div style="margin-top:8px;"><img src="http://127.0.0.1:8000/${p.picture_path}" style="max-
+            width:180px; max-height:180px; display:block;"></div>` 
+            : "";
+
         const popupContent = `
             <div>
-            <strong>${p.description || "Point of Interest"}</strong><br>
-            ${p.image ? `img src="http://127.0.0.1:8000/pictures/${p.picture_path}" style="width:120px;margin-top:5px;">` : ""}
+                <strong>${title}</strong>
+                ${descriptionHtml}
+                ${imageHtml}
             </div>
             `;
 
