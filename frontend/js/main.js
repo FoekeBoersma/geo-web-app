@@ -1,7 +1,7 @@
-import { fetchPlace, fetchRoute } from './api.js';
+import { fetchPlace, fetchRoute, fetchPoints } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { map } from "./map.js";
+import { map, showPointsOfInterest } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -20,6 +20,14 @@ routeBtn.addEventListener('click', async() => {
     updateUI();
 });
 
+(async () => {
+    try {
+        const pois = await fetchPoints();
+        showPointsOfInterest(pois);
+    } catch (err) {
+        console.error("Failed to fetch points of interest:", err);
+    }
+})
 document.getElementById('origin').addEventListener('input', (e) => {
     const value = e.target.value.trim()
     

@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-from fastapi import FastAPI, HTTPException
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, UploadFile, Form, File
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
@@ -10,13 +14,22 @@ import httpx # useful for async requests; parallel API calls; potentially faster
 from dotenv import load_dotenv
 import os
 from .models import RouteLog
-from .db import engine, init_db
+from .db import route_engine, points_engine, init_db  
+import shutil
+from .models import PointOfInterest
+
 
 class RouteLogCreate(SQLModel):
     origin: str
     destination: str
     geojson: str
 
+class PointOfInterestCreate(SQLModel):
+    latitude: float
+    longitude: float
+    name: Optional[str] = None
+    description: Optional[str] = None
+    picture: Optional[UploadFile] = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +41,7 @@ async def lifespan(app: FastAPI):
 
     
 app = FastAPI(lifespan=lifespan)
+app.mount("/pictures", StaticFiles(directory="pictures"), name="pictures")
 
 load_dotenv() # load environment variables from .env file
 
@@ -113,7 +127,7 @@ async def get_route(origin: str, destination: str) -> dict:
 
 @app.post("/log-route")
 def log_route(payload: RouteLogCreate):
-    with Session(engine) as session:
+    with Session(route_engine) as session:
         entry = RouteLog(
             origin=payload.origin,
             destination=payload.destination,
@@ -123,3 +137,35 @@ def log_route(payload: RouteLogCreate):
         session.commit()
         session.refresh(entry)
         return {"status": "saved", "id": entry.id}
+
+@app.get("/get-points-of-interest")
+def get_points_of_interest():
+    with Session(points_engine) as session:
+        points = session.query(PointOfInterest).all()
+        return points
+
+
+@app.post("/create-point-of-interest")
+def create_point_of_interest(latitude: float = Form(...), longitude: float = Form(...),
+    name: Optional[str] = Form(None), description: Optional[str] = Form(None), 
+    picture: Optional[UploadFile] = File(None)):
+    picture_path = None
+    if picture:
+        os.makedirs("pictures", exist_ok = True)
+        file_path = f"pictures/{picture.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(picture.file, buffer)
+        picture_path = file_path
+    with Session(points_engine) as session: # use Session with points_engine to save to points.db
+        point = PointOfInterest(
+            latitude=latitude,
+            longitude=longitude,
+            name=name,
+            description=description,
+            picture_path=picture_path
+        )
+        session.add(point) 
+        session.commit()
+        session.refresh(point)
+        return {"status": "saved", "id": point.id}
+    

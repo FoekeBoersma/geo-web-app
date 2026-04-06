@@ -1,3 +1,5 @@
+import { createPoint, fetchPoints } from './api.js';
+
 export const map = L.map("map").setView([20, 0], 2);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -7,6 +9,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const markersLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map)
+const pointsOfInterestLayer = L.layerGroup().addTo(map);
 const statusEl = document.getElementById('status');
 
 export function showMarkers(data) {
@@ -51,4 +54,71 @@ export function showRoute(coords) {
     const polyline = L.polyline(latlngs, { color: "blue", weight: 4}).addTo(routeLayer);
 
     map.fitBounds(polyline.getBounds())
+}
+
+export function showPointsOfInterest(pois) {
+    pointsOfInterestLayer.clearLayers();
+
+    pois.forEach(p => {
+        if (!p.latitude || !p.longitude ) return;
+
+        const title = p.name || p.description || "Point of Interest";
+        const descriptionHtml = p.description ? `<div style="margin-top:4px;">${p.description}</div` : "";
+        const imageHtml = p.picture_path 
+            ? `<div style="margin-top:8px;"><img src="http://127.0.0.1:8000/${p.picture_path}" style="max-
+            width:180px; max-height:180px; display:block;"></div>` 
+            : "";
+
+        const popupContent = `
+            <div>
+                <strong>${title}</strong>
+                ${descriptionHtml}
+                ${imageHtml}
+            </div>
+            `;
+
+            L.marker([p.latitude, p.longitude])
+                .addTo(pointsOfInterestLayer)
+                .bindPopup(popupContent);
+    })
+}
+
+map.on("click", (e) => {
+    const latitude = e.latlng.lat;
+    const longitude = e.latlng.lng;
+
+    showPointForm(latitude, longitude);
+} )
+
+function showPointForm(latitude, longitude) {
+    const formHtml = `
+    <div id="point-form" style="position: fixed; top: 90px; right: 20px; background: white; padding: 12px; border: 1px solid #333; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000; width: 280px;">
+    <h3 style="margin-top:0; margin-bottom:10px; font-size:1rem;">Add Point of Interest</h3>
+    <label style="display:block; margin-bottom:6px; font-size:0.9rem;">Name: <input type="text" id="poi-name" style="width:100%; box-sizing:border-box;"></label>
+    <label style="display:block; margin-bottom:6px; font-size:0.9rem;">Description: <input type="text" id="poi-desc" style="width:100%; box-sizing:border-box;"></label>
+    <label style="display:block; margin-bottom:10px; font-size:0.9rem;">Picture: <input type="file" id="poi-pic" accept="image/*"></label>
+    <button id="save-poi" style="margin-right:8px;">Save</button>
+    <button id="cancel-poi">Cancel</button>
+    </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', formHtml);
+
+    document.getElementById('save-poi').addEventListener('click', async () => {
+        const name = document.getElementById('poi-name').value;
+        const desc = document.getElementById('poi-desc').value;
+        const pic = document.getElementById('poi-pic').files[0];
+        try {
+            await createPoint(latitude, longitude, name, desc, pic);
+            const points = await fetchPoints();
+            showPointsOfInterest(points);
+            document.getElementById('point-form').remove();
+        } catch (err) {
+            alert('Error saving point: ' + err.message);
+        }
+    });
+
+    document.getElementById('cancel-poi').addEventListener('click', () => {
+        document.getElementById('point-form').remove();
+    });
 }
