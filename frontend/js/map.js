@@ -7,6 +7,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const markersLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map)
+const pointsOfInterestLayer = L.layerGroup().addTo(map);
 const statusEl = document.getElementById('status');
 
 export function showMarkers(data) {
@@ -52,3 +53,29 @@ export function showRoute(coords) {
 
     map.fitBounds(polyline.getBounds())
 }
+
+export function showPointsOfInterest(pois) {
+    pointsOfInterestLayer.clearLayers();
+
+    pois.forEach(p => {
+        if (!p.latitude || !p.longitude ) return;
+
+        const popupContent = `
+            <div>
+            <strong>$p.description || "Point of Interest"</strong><br>
+            ${p.image ? `img src="${p.image}" style="width:120px;margin-top:5px;">` : ""}
+            </div>
+            `;
+
+            L.marker([p.latitude, p.longitude])
+                .addTo(pointsOfInterestLayer)
+                .bindPopup(popupContent);
+    })
+}
+
+map.on("click", (e) => {
+    const latitude = e.latlng.lat;
+    const longitude = e.latlng.lng;
+
+    showPointForm(latitude, longitude);
+} )
