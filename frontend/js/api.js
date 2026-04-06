@@ -90,6 +90,6 @@ export async function createPoint(latitude, longitude, name, description, pictur
 }
 
 export async function fetchPoints() {
-    const res = await fetch("http://127.0.0.1:8000/get-points");
+    const res = await fetch("http://127.0.0.1:8000/get-points-of-interest");
     return await res.json();
 }

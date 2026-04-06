@@ -1,4 +1,4 @@
-import { createPoint, fetchPoint } from './api.js';
+import { createPoint, fetchPoints } from './api.js';
 
 export const map = L.map("map").setView([20, 0], 2);
 
@@ -101,8 +101,8 @@ function showPointForm(latitude, longitude) {
         const desc = document.getElementById('poi-desc').value;
         const pic = document.getElementById('poi-pic').files[0];
         try {
-            await createPoint(latitude, longitude, desc, pic);
-            const points = await fetchPoint();
+            await createPoint(latitude, longitude, name, desc, pic);
+            const points = await fetchPoints();
             showPointsOfInterest(points);
             document.getElementById('point-form').remove();
         } catch (err) {

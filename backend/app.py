@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, Form, File, StaticFiles, FileResponse
+from fastapi import FastAPI, HTTPException, UploadFile, Form, File
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
