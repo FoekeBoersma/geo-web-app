@@ -74,4 +74,21 @@ export async function fetchRoute() {
     }
 }
 
-// Log route call moved into fetchRoute (post after successful route fetch).
+export async function createPoint(lat, lon, description, pictureFile) {
+    const formData = new FormData();
+    formData.append("lat", lat);
+    formData.append("lon", lon);
+    if (description) formData.append("description", description);
+    if (pictureFile) formData.append("picture", pictureFile);
+
+    const res = await fetch("http://127.0.0.1:8000/create-point-of-interest", {
+        method: "POST",
+        body: formData
+    });
+    return await res.json();
+}
+
+export async function fetchPoints() {
+    const res = await fetch("http://127.0.0.1:8000/get-points");
+    return await res.json();
+}

@@ -140,7 +140,7 @@ def log_route(payload: RouteLogCreate):
         session.refresh(entry)
         return {"status": "saved", "id": entry.id}
     
-@app.post("/add-point-of-interest")
+@app.post("/create-point-of-interest")
 def create_point_of_interest(latitude: float = Form(...), longitude: float = Form(...),
     name: Optional[str] = Form(None), description: Optional[str] = Form(None), 
     picture: Optional[UploadFile] = File(None)):
