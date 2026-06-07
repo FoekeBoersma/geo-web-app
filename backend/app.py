@@ -3,7 +3,6 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, Form, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
@@ -13,11 +12,18 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
 from dotenv import load_dotenv
 import os
+import math
 from .models import RouteLog
 from .db import route_engine, points_engine, init_db  
 import shutil
 from .models import PointOfInterest
 
+import json
+from pathlib import Path
+from fastapi.responses import StreamingResponse
+from sqlmodel import select
+import base64
+import html
 
 class RouteLogCreate(SQLModel):
     origin: str
@@ -168,4 +174,195 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         session.commit()
         session.refresh(point)
         return {"status": "saved", "id": point.id}
+
+
+def generate_svg_map(points_with_images):
+    """Generate SVG with basemap, numbered POI markers, and linked pictures"""
+    if not points_with_images:
+        raise HTTPException(status_code=404, detail="No points of interest with images found.")
     
+    # Determine center point and zoom for tile background
+    latitudes = [p.latitude for p, _ in points_with_images]
+    longitudes = [p.longitude for p, _ in points_with_images]
+    center_lat = sum(latitudes) / len(latitudes)
+    center_lon = sum(longitudes) / len(longitudes)
+    min_lat, max_lat = min(latitudes), max(latitudes)
+    min_lon, max_lon = min(longitudes), max(longitudes)
+
+    map_width = 1200
+    map_height = 600
+
+    def deg2tile(lon, lat, z):
+        lat_rad = math.radians(lat)
+        n = 2.0 ** z
+        xtile = (lon + 180.0) / 360.0 * n
+        ytile = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n
+        return xtile, ytile
+
+    def deg2px(lon, lat, z):
+        lat_rad = math.radians(lat)
+        n = 2.0 ** z
+        x = (lon + 180.0) / 360.0 * n * 256
+        y = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n * 256
+        return x, y
+
+    def choose_zoom():
+        if len(points_with_images) < 2 or (max_lat == min_lat and max_lon == min_lon):
+            return 10
+
+        x_min_14, y_top_14 = deg2px(min_lon, max_lat, 14)
+        x_max_14, y_bottom_14 = deg2px(max_lon, min_lat, 14)
+        width_px_14 = abs(x_max_14 - x_min_14)
+        height_px_14 = abs(y_bottom_14 - y_top_14)
+
+        if width_px_14 == 0 or height_px_14 == 0:
+            return 10
+
+        width_scale = map_width / width_px_14
+        height_scale = map_height / height_px_14
+        target_scale = max(width_scale, height_scale) * 0.7
+
+        zoom_offset = math.floor(math.log2(target_scale)) if target_scale > 1 else 0
+        computed_zoom = 14 - zoom_offset
+        return max(8, min(12, computed_zoom))
+
+    zoom = choose_zoom()
+    center_xtile, center_ytile = deg2tile(center_lon, center_lat, zoom)
+    tile_x = int(center_xtile)
+    tile_y = int(center_ytile)
+
+    # Build a small mosaic of tiles around the center to give context and correct offsets
+    tile_span = 3  # 3x3 tiles with the center tile in the middle
+    half_span = tile_span // 2
+
+    tiles = []  # list of tuples (tx, ty, b64)
+    for dx in range(-half_span, half_span + 1):
+        for dy in range(-half_span, half_span + 1):
+            tx = tile_x + dx
+            ty = tile_y + dy
+            tile_url = f"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png"
+            try:
+                tile_resp = httpx.get(tile_url, timeout=10.0)
+                tile_resp.raise_for_status()
+                tile_png = tile_resp.content
+                tile_b64 = base64.b64encode(tile_png).decode('utf-8')
+            except Exception:
+                tile_b64 = None
+            tiles.append((tx, ty, tile_b64))
+
+    map_width = 1200
+    map_height = 600
+    total_height = map_height + (len(points_with_images) * 220)
+
+    # Convert tile-space pixels to svg pixels for the mosaic (mosaic pixel width = tile_span*256)
+    mosaic_px_width = tile_span * 256
+    mosaic_px_height = tile_span * 256
+    def globalpx_to_svg(px):
+        return px * (map_width / mosaic_px_width)
+    
+    svg_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{map_width}" height="{total_height}" viewBox="0 0 {map_width} {total_height}">',
+        '<defs><style>',
+        '.coord-text { font-size: 9px; fill: #999; }',
+        '.gallery-title { font-size: 18px; font-weight: bold; fill: black; }',
+        '.gallery-item { stroke: #333; stroke-width: 1; fill: white; }',
+        '.gallery-label { font-size: 12px; fill: black; }',
+        '</style></defs>',
+    ]
+    
+    svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="#e9f7fd"/>')
+
+    # Place mosaic tiles into the SVG. compute scaling separately for x/y to preserve map aspect.
+    start_tx = tile_x - half_span
+    start_ty = tile_y - half_span
+    scale_x = map_width / mosaic_px_width
+    scale_y = map_height / mosaic_px_height
+    tile_w_svg = 256 * scale_x
+    tile_h_svg = 256 * scale_y
+    for tx, ty, tb64 in tiles:
+        if not tb64:
+            continue
+        px_off = (tx - start_tx) * 256
+        py_off = (ty - start_ty) * 256
+        x_svg = px_off * scale_x
+        y_svg = py_off * scale_y
+        svg_lines.append(f'<image x="{x_svg}" y="{y_svg}" width="{tile_w_svg}" height="{tile_h_svg}" href="data:image/png;base64,{tb64}" preserveAspectRatio="none"/>')
+    
+    svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="none" stroke="#333" stroke-width="2"/>')
+    
+    # Draw simple latitude/longitude grid lines
+    for i in range(1, 4):
+        x = i * (map_width / 4)
+        y = i * (map_height / 4)
+        svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{map_height}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
+        svg_lines.append(f'<line x1="0" y1="{y}" x2="{map_width}" y2="{y}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
+    
+    # marker placement relative to mosaic origin
+    for idx, (point, _) in enumerate(points_with_images):
+        px, py = deg2px(point.longitude, point.latitude, zoom)
+        svg_x = (px - (start_tx * 256)) * scale_x
+        svg_y = (py - (start_ty * 256)) * scale_y
+        poi_number = idx + 1
+        
+        svg_lines.append(f'<circle cx="{svg_x}" cy="{svg_y}" r="18" fill="#ff6b6b" stroke="white" stroke-width="3"/>')
+        svg_lines.append(f'<text x="{svg_x}" y="{svg_y + 1}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="14" font-weight="bold">{poi_number}</text>')
+        title = html.escape(point.name or point.description or f"POI {poi_number}")
+        svg_lines.append(f'<text x="{svg_x + 25}" y="{svg_y - 5}" fill="#111" font-size="12">{title[:30]}</text>')
+        svg_lines.append(f'<text x="{svg_x + 25}" y="{svg_y + 12}" fill="#555" font-size="10">({point.latitude:.2f}, {point.longitude:.2f})</text>')
+    
+    gallery_y = map_height + 40
+    svg_lines.append(f'<text x="20" y="{gallery_y}" class="gallery-title">Photo Gallery</text>')
+    
+    gallery_y += 30
+    for idx, (point, image_path) in enumerate(points_with_images):
+        poi_number = idx + 1
+        
+        try:
+            with open(image_path, 'rb') as f:
+                img_data = base64.b64encode(f.read()).decode('utf-8')
+            img_ext = image_path.suffix.lower()
+            mime_type = 'image/jpeg' if img_ext in ['.jpg', '.jpeg'] else 'image/png'
+            img_x = 20
+            img_y = gallery_y
+            img_size = 180
+            svg_lines.append(f'<rect x="{img_x}" y="{img_y}" width="{img_size + 10}" height="{img_size + 50}" class="gallery-item"/>')
+            svg_lines.append(f'<circle cx="{img_x + 10}" cy="{img_y + 10}" r="15" fill="#ff6b6b"/>')
+            svg_lines.append(f'<text x="{img_x + 10}" y="{img_y + 15}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="14" font-weight="bold">{poi_number}</text>')
+            svg_lines.append(f'<image x="{img_x + 5}" y="{img_y + 5}" width="{img_size}" height="{img_size}" href="data:{mime_type};base64,{img_data}"/>')
+            title = html.escape(point.name or point.description or f"POI {poi_number}")
+            svg_lines.append(f'<text x="{img_x + 5}" y="{img_y + img_size + 20}" class="gallery-label" font-weight="bold">{title[:25]}</text>')
+            if point.description:
+                desc = html.escape(point.description[:50])
+                svg_lines.append(f'<text x="{img_x + 5}" y="{img_y + img_size + 35}" class="gallery-label" fill="#666">{desc}</text>')
+            gallery_y += img_size + 70
+        except Exception:
+            pass
+    
+    svg_lines.append('</svg>')
+    return '\n'.join(svg_lines)
+
+
+
+@app.get("/export-poi-map-svg")
+def export_poi_map_svg():
+    """Export POI map with embedded pictures as SVG"""
+    with Session(points_engine) as session:
+        statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
+        points = session.exec(statement).all()
+
+    valid_points = []
+    for point in points:
+        if not point.picture_path:
+            continue
+        image_path = Path(point.picture_path)
+        if image_path.is_file():
+            valid_points.append((point, image_path))
+
+    svg_content = generate_svg_map(valid_points)
+    
+    return StreamingResponse(
+        iter([svg_content]),
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": "attachment; filename=poi-map-export.svg"}
+    )
