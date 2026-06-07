@@ -2,6 +2,7 @@ import { fetchPlace, fetchRoute, fetchPoints } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { map, showPointsOfInterest } from "./map.js";
+import { exportPoiMap } from '/api.js'
 
 // initial UI sync
 updateUI();
@@ -10,7 +11,16 @@ const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
+const exportPoiBtn = document.getElementById('export-poi-btn');
 
+
+exportPoiBtn.addEventListener('click', async() => {
+    try {
+        await exportPoiMap();
+    } catch (err) {
+        console.error("Failed to export POI map:", err);
+    }
+});
 searchBtn.addEventListener('click', async() => {
      await fetchPlace();
      updateUI();
