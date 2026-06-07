@@ -24,6 +24,8 @@ from io import BytesIO
 from pathlib import Path
 from fastapi.responses import StreamingResponse
 from sqlmodel import select
+import base64
+import html
 
 class RouteLogCreate(SQLModel):
     origin: str
@@ -286,4 +288,125 @@ def export_poi_map():
         buffer,
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=poi_map_export.zip"}
+    )
+
+
+def generate_svg_map(points_with_images):
+    """Generate SVG with embedded map and POI pictures"""
+    if not points_with_images:
+        raise HTTPException(status_code=404, detail="No points of interest with images found.")
+    
+    # Calculate SVG viewport bounds from POI coordinates
+    lats = [p.latitude for p, _ in points_with_images]
+    lons = [p.longitude for p, _ in points_with_images]
+    
+    min_lat, max_lat = min(lats), max(lats)
+    min_lon, max_lon = min(lons), max(lons)
+    
+    # Add padding
+    lat_range = max_lat - min_lat if max_lat != min_lat else 1
+    lon_range = max_lon - min_lon if max_lon != min_lon else 1
+    padding = 0.1
+    
+    min_lat -= lat_range * padding
+    max_lat += lat_range * padding
+    min_lon -= lon_range * padding
+    max_lon += lon_range * padding
+    
+    # SVG size
+    svg_width = 1200
+    svg_height = 800
+    
+    # Conversion functions
+    def lon_to_x(lon):
+        return (lon - min_lon) / (max_lon - min_lon) * svg_width
+    
+    def lat_to_y(lat):
+        return (max_lat - lat) / (max_lat - min_lat) * svg_height
+    
+    # Start building SVG
+    svg_lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
+        '<defs><style>',
+        '.marker-circle {{ fill: #ff6b6b; stroke: white; stroke-width: 2; }}',
+        '.marker-text {{ font-size: 12px; fill: black; }}',
+        '.poi-image {{ border: 1px solid #ccc; }}',
+        '</style></defs>',
+        '<rect width="100%" height="100%" fill="#e8f4f8"/>',  # Light blue background
+    ]
+    
+    # Add grid lines for reference
+    for i in range(5):
+        x = (i / 4) * svg_width
+        svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{svg_height}" stroke="#ddd" stroke-width="1"/>')
+        y = (i / 4) * svg_height
+        svg_lines.append(f'<line x1="0" y1="{y}" x2="{svg_width}" y2="{y}" stroke="#ddd" stroke-width="1"/>')
+    
+    # Add POI markers and pictures
+    y_offset = 50
+    for idx, (point, image_path) in enumerate(points_with_images):
+        x = lon_to_x(point.longitude)
+        y = lat_to_y(point.latitude)
+        
+        # Marker circle
+        svg_lines.append(f'<circle cx="{x}" cy="{y}" r="8" class="marker-circle"/>')
+        
+        # POI label
+        title = html.escape(point.name or point.description or "POI")
+        svg_lines.append(f'<text x="{x + 12}" y="{y}" class="marker-text">{title}</text>')
+        
+        # Embed image as base64
+        try:
+            with open(image_path, 'rb') as f:
+                img_data = base64.b64encode(f.read()).decode('utf-8')
+            
+            # Determine image type
+            img_ext = image_path.suffix.lower()
+            mime_type = 'image/jpeg' if img_ext in ['.jpg', '.jpeg'] else 'image/png'
+            
+            # Add embedded image below the map
+            img_x = 20
+            img_y = y_offset
+            img_size = 150
+            
+            svg_lines.append(f'<g>')
+            svg_lines.append(f'  <rect x="{img_x - 5}" y="{img_y - 5}" width="{img_size + 10}" height="{img_size + 10}" fill="white" stroke="#ccc" stroke-width="1"/>')
+            svg_lines.append(f'  <image x="{img_x}" y="{img_y}" width="{img_size}" height="{img_size}" href="data:{mime_type};base64,{img_data}"/>')
+            svg_lines.append(f'  <text x="{img_x}" y="{img_y + img_size + 20}" font-size="12" font-weight="bold">{title}</text>')
+            if point.description:
+                desc = html.escape(point.description[:50])
+                svg_lines.append(f'  <text x="{img_x}" y="{img_y + img_size + 35}" font-size="10" fill="#666">{desc}</text>')
+            svg_lines.append(f'</g>')
+            
+            y_offset += img_size + 70
+        except Exception as e:
+            pass  # Skip image if can't read
+    
+    svg_lines.append('</svg>')
+    
+    return '\n'.join(svg_lines)
+
+
+@app.get("/export-poi-map-svg")
+def export_poi_map_svg():
+    """Export POI map with embedded pictures as SVG"""
+    with Session(points_engine) as session:
+        statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
+        points = session.exec(statement).all()
+
+    valid_points = []
+    for point in points:
+        if not point.picture_path:
+            continue
+        image_path = Path(point.picture_path)
+        if image_path.is_file():
+            valid_points.append((point, image_path))
+
+    svg_content = generate_svg_map(valid_points)
+    
+    return StreamingResponse(
+        iter([svg_content]),
+        media_type="image/svg+xml",
+        headers={"Content-Disposition": "attachment; filename=poi-map-export.svg"}
     )

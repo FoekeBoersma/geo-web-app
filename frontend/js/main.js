@@ -1,8 +1,7 @@
-import { fetchPlace, fetchRoute, fetchPoints } from './api.js';
+import { fetchPlace, fetchRoute, fetchPoints, exportPoiMap, exportPoiMapSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { map, showPointsOfInterest } from "./map.js";
-import { exportPoiMap } from './api.js'
 
 // initial UI sync
 updateUI();
@@ -12,6 +11,7 @@ const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
 const exportPoiBtn = document.getElementById('export-poi-btn');
+const exportPoiSvgBtn = document.getElementById('export-poi-svg-btn');
 
 
 exportPoiBtn.addEventListener('click', async() => {
@@ -19,6 +19,14 @@ exportPoiBtn.addEventListener('click', async() => {
         await exportPoiMap();
     } catch (err) {
         console.error("Failed to export POI map:", err);
+    }
+});
+
+exportPoiSvgBtn.addEventListener('click', async() => {
+    try {
+        await exportPoiMapSvg();
+    } catch (err) {
+        console.error("Failed to export POI map SVG:", err);
     }
 });
 searchBtn.addEventListener('click', async() => {
