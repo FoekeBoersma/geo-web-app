@@ -93,3 +93,25 @@ export async function fetchPoints() {
     const res = await fetch("http://127.0.0.1:8000/get-points-of-interest");
     return await res.json();
 }
+
+export async function exportPoiMap() {
+    const res = await fetch("http://127.0.0.1:8000/export-poi-map");
+
+    if (!res.ok) {
+        const errorText = await res.text();
+        throw new Error(`Failed to export POI map: ${res.status} ${errorText}`);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "poi-map-export.zip";
+    document.body.appendChild(a);
+    a.click();
+    a.remove()
+
+
+    URL.revokeObjectURL(url)
+}
