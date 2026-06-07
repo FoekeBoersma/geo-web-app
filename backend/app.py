@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
 from dotenv import load_dotenv
 import os
+import math
 from .models import RouteLog
 from .db import route_engine, points_engine, init_db  
 import shutil
@@ -292,100 +293,171 @@ def export_poi_map():
 
 
 def generate_svg_map(points_with_images):
-    """Generate SVG with embedded map and POI pictures"""
+    """Generate SVG with basemap, numbered POI markers, and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
     
-    # Calculate SVG viewport bounds from POI coordinates
-    lats = [p.latitude for p, _ in points_with_images]
-    lons = [p.longitude for p, _ in points_with_images]
+    # Determine center point and zoom for tile background
+    latitudes = [p.latitude for p, _ in points_with_images]
+    longitudes = [p.longitude for p, _ in points_with_images]
+    center_lat = sum(latitudes) / len(latitudes)
+    center_lon = sum(longitudes) / len(longitudes)
+    min_lat, max_lat = min(latitudes), max(latitudes)
+    min_lon, max_lon = min(longitudes), max(longitudes)
+
+    map_width = 1200
+    map_height = 600
+
+    def deg2tile(lon, lat, z):
+        lat_rad = math.radians(lat)
+        n = 2.0 ** z
+        xtile = (lon + 180.0) / 360.0 * n
+        ytile = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n
+        return xtile, ytile
+
+    def deg2px(lon, lat, z):
+        lat_rad = math.radians(lat)
+        n = 2.0 ** z
+        x = (lon + 180.0) / 360.0 * n * 256
+        y = (1.0 - math.log(math.tan(lat_rad) + (1 / math.cos(lat_rad))) / math.pi) / 2.0 * n * 256
+        return x, y
+
+    def choose_zoom():
+        if len(points_with_images) < 2 or (max_lat == min_lat and max_lon == min_lon):
+            return 10
+
+        x_min_14, y_top_14 = deg2px(min_lon, max_lat, 14)
+        x_max_14, y_bottom_14 = deg2px(max_lon, min_lat, 14)
+        width_px_14 = abs(x_max_14 - x_min_14)
+        height_px_14 = abs(y_bottom_14 - y_top_14)
+
+        if width_px_14 == 0 or height_px_14 == 0:
+            return 10
+
+        width_scale = map_width / width_px_14
+        height_scale = map_height / height_px_14
+        target_scale = max(width_scale, height_scale) * 0.7
+
+        zoom_offset = math.floor(math.log2(target_scale)) if target_scale > 1 else 0
+        computed_zoom = 14 - zoom_offset
+        return max(8, min(12, computed_zoom))
+
+    zoom = choose_zoom()
+    center_xtile, center_ytile = deg2tile(center_lon, center_lat, zoom)
+    tile_x = int(center_xtile)
+    tile_y = int(center_ytile)
+
+    # Build a small mosaic of tiles around the center to give context and correct offsets
+    tile_span = 3  # 3x3 tiles with the center tile in the middle
+    half_span = tile_span // 2
+
+    tiles = []  # list of tuples (tx, ty, b64)
+    for dx in range(-half_span, half_span + 1):
+        for dy in range(-half_span, half_span + 1):
+            tx = tile_x + dx
+            ty = tile_y + dy
+            tile_url = f"https://tile.openstreetmap.org/{zoom}/{tx}/{ty}.png"
+            try:
+                tile_resp = httpx.get(tile_url, timeout=10.0)
+                tile_resp.raise_for_status()
+                tile_png = tile_resp.content
+                tile_b64 = base64.b64encode(tile_png).decode('utf-8')
+            except Exception:
+                tile_b64 = None
+            tiles.append((tx, ty, tile_b64))
+
+    map_width = 1200
+    map_height = 600
+    total_height = map_height + (len(points_with_images) * 220)
+
+    # Convert tile-space pixels to svg pixels for the mosaic (mosaic pixel width = tile_span*256)
+    mosaic_px_width = tile_span * 256
+    mosaic_px_height = tile_span * 256
+    def globalpx_to_svg(px):
+        return px * (map_width / mosaic_px_width)
     
-    min_lat, max_lat = min(lats), max(lats)
-    min_lon, max_lon = min(lons), max(lons)
-    
-    # Add padding
-    lat_range = max_lat - min_lat if max_lat != min_lat else 1
-    lon_range = max_lon - min_lon if max_lon != min_lon else 1
-    padding = 0.1
-    
-    min_lat -= lat_range * padding
-    max_lat += lat_range * padding
-    min_lon -= lon_range * padding
-    max_lon += lon_range * padding
-    
-    # SVG size
-    svg_width = 1200
-    svg_height = 800
-    
-    # Conversion functions
-    def lon_to_x(lon):
-        return (lon - min_lon) / (max_lon - min_lon) * svg_width
-    
-    def lat_to_y(lat):
-        return (max_lat - lat) / (max_lat - min_lat) * svg_height
-    
-    # Start building SVG
     svg_lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}">',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{map_width}" height="{total_height}" viewBox="0 0 {map_width} {total_height}">',
         '<defs><style>',
-        '.marker-circle {{ fill: #ff6b6b; stroke: white; stroke-width: 2; }}',
-        '.marker-text {{ font-size: 12px; fill: black; }}',
-        '.poi-image {{ border: 1px solid #ccc; }}',
+        '.coord-text { font-size: 9px; fill: #999; }',
+        '.gallery-title { font-size: 18px; font-weight: bold; fill: black; }',
+        '.gallery-item { stroke: #333; stroke-width: 1; fill: white; }',
+        '.gallery-label { font-size: 12px; fill: black; }',
         '</style></defs>',
-        '<rect width="100%" height="100%" fill="#e8f4f8"/>',  # Light blue background
     ]
     
-    # Add grid lines for reference
-    for i in range(5):
-        x = (i / 4) * svg_width
-        svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{svg_height}" stroke="#ddd" stroke-width="1"/>')
-        y = (i / 4) * svg_height
-        svg_lines.append(f'<line x1="0" y1="{y}" x2="{svg_width}" y2="{y}" stroke="#ddd" stroke-width="1"/>')
+    svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="#e9f7fd"/>')
+
+    # Place mosaic tiles into the SVG. compute scaling separately for x/y to preserve map aspect.
+    start_tx = tile_x - half_span
+    start_ty = tile_y - half_span
+    scale_x = map_width / mosaic_px_width
+    scale_y = map_height / mosaic_px_height
+    tile_w_svg = 256 * scale_x
+    tile_h_svg = 256 * scale_y
+    for tx, ty, tb64 in tiles:
+        if not tb64:
+            continue
+        px_off = (tx - start_tx) * 256
+        py_off = (ty - start_ty) * 256
+        x_svg = px_off * scale_x
+        y_svg = py_off * scale_y
+        svg_lines.append(f'<image x="{x_svg}" y="{y_svg}" width="{tile_w_svg}" height="{tile_h_svg}" href="data:image/png;base64,{tb64}" preserveAspectRatio="none"/>')
     
-    # Add POI markers and pictures
-    y_offset = 50
+    svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="none" stroke="#333" stroke-width="2"/>')
+    
+    # Draw simple latitude/longitude grid lines
+    for i in range(1, 4):
+        x = i * (map_width / 4)
+        y = i * (map_height / 4)
+        svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{map_height}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
+        svg_lines.append(f'<line x1="0" y1="{y}" x2="{map_width}" y2="{y}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
+    
+    # marker placement relative to mosaic origin
+    for idx, (point, _) in enumerate(points_with_images):
+        px, py = deg2px(point.longitude, point.latitude, zoom)
+        svg_x = (px - (start_tx * 256)) * scale_x
+        svg_y = (py - (start_ty * 256)) * scale_y
+        poi_number = idx + 1
+        
+        svg_lines.append(f'<circle cx="{svg_x}" cy="{svg_y}" r="18" fill="#ff6b6b" stroke="white" stroke-width="3"/>')
+        svg_lines.append(f'<text x="{svg_x}" y="{svg_y + 1}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="14" font-weight="bold">{poi_number}</text>')
+        title = html.escape(point.name or point.description or f"POI {poi_number}")
+        svg_lines.append(f'<text x="{svg_x + 25}" y="{svg_y - 5}" fill="#111" font-size="12">{title[:30]}</text>')
+        svg_lines.append(f'<text x="{svg_x + 25}" y="{svg_y + 12}" fill="#555" font-size="10">({point.latitude:.2f}, {point.longitude:.2f})</text>')
+    
+    gallery_y = map_height + 40
+    svg_lines.append(f'<text x="20" y="{gallery_y}" class="gallery-title">Photo Gallery</text>')
+    
+    gallery_y += 30
     for idx, (point, image_path) in enumerate(points_with_images):
-        x = lon_to_x(point.longitude)
-        y = lat_to_y(point.latitude)
+        poi_number = idx + 1
         
-        # Marker circle
-        svg_lines.append(f'<circle cx="{x}" cy="{y}" r="8" class="marker-circle"/>')
-        
-        # POI label
-        title = html.escape(point.name or point.description or "POI")
-        svg_lines.append(f'<text x="{x + 12}" y="{y}" class="marker-text">{title}</text>')
-        
-        # Embed image as base64
         try:
             with open(image_path, 'rb') as f:
                 img_data = base64.b64encode(f.read()).decode('utf-8')
-            
-            # Determine image type
             img_ext = image_path.suffix.lower()
             mime_type = 'image/jpeg' if img_ext in ['.jpg', '.jpeg'] else 'image/png'
-            
-            # Add embedded image below the map
             img_x = 20
-            img_y = y_offset
-            img_size = 150
-            
-            svg_lines.append(f'<g>')
-            svg_lines.append(f'  <rect x="{img_x - 5}" y="{img_y - 5}" width="{img_size + 10}" height="{img_size + 10}" fill="white" stroke="#ccc" stroke-width="1"/>')
-            svg_lines.append(f'  <image x="{img_x}" y="{img_y}" width="{img_size}" height="{img_size}" href="data:{mime_type};base64,{img_data}"/>')
-            svg_lines.append(f'  <text x="{img_x}" y="{img_y + img_size + 20}" font-size="12" font-weight="bold">{title}</text>')
+            img_y = gallery_y
+            img_size = 180
+            svg_lines.append(f'<rect x="{img_x}" y="{img_y}" width="{img_size + 10}" height="{img_size + 50}" class="gallery-item"/>')
+            svg_lines.append(f'<circle cx="{img_x + 10}" cy="{img_y + 10}" r="15" fill="#ff6b6b"/>')
+            svg_lines.append(f'<text x="{img_x + 10}" y="{img_y + 15}" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="14" font-weight="bold">{poi_number}</text>')
+            svg_lines.append(f'<image x="{img_x + 5}" y="{img_y + 5}" width="{img_size}" height="{img_size}" href="data:{mime_type};base64,{img_data}"/>')
+            title = html.escape(point.name or point.description or f"POI {poi_number}")
+            svg_lines.append(f'<text x="{img_x + 5}" y="{img_y + img_size + 20}" class="gallery-label" font-weight="bold">{title[:25]}</text>')
             if point.description:
                 desc = html.escape(point.description[:50])
-                svg_lines.append(f'  <text x="{img_x}" y="{img_y + img_size + 35}" font-size="10" fill="#666">{desc}</text>')
-            svg_lines.append(f'</g>')
-            
-            y_offset += img_size + 70
-        except Exception as e:
-            pass  # Skip image if can't read
+                svg_lines.append(f'<text x="{img_x + 5}" y="{img_y + img_size + 35}" class="gallery-label" fill="#666">{desc}</text>')
+            gallery_y += img_size + 70
+        except Exception:
+            pass
     
     svg_lines.append('</svg>')
-    
     return '\n'.join(svg_lines)
+
 
 
 @app.get("/export-poi-map-svg")
