@@ -178,22 +178,22 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
 def build_export_html(points):
     exported_points = []
     for point in points:
-        image_name = Path(point.picture.path).name if point.picture_path else None
+        image_name = Path(point.picture_path).name if point.picture_path else None
         exported_points.append({
             "lat": point.latitude,
             "lon": point.longitude,
             "name": point.name or "",
             "description": point.description or "",
-            "picture": f"images/{image_name}" if image_name else None
+            "image": f"images/{image_name}" if image_name else None
         })
 
     points_json = json.dumps(exported_points, indent=2)
 
     return f"""<!doctype html>
-    <html leng="en">
+    <html lang="en">
     <head>
-        <meta charset="utf-8 />
-        <title>POI Map Export </title>
+        <meta charset="utf-8" />
+        <title>POI Map Export</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
         <style>
@@ -216,7 +216,7 @@ def build_export_html(points):
         const markers = [];
         pointsData.forEach(p => {{
         const title = p.name || p.description || 'POI';
-        const descriptionHtml = p.description ? '<div style="margin-top:4px;">${{p.description}}</div>` : '';
+        const descriptionHtml = p.description ? `<div style="margin-top:4px;">${{p.description}}</div>` : '';
         const imageHtml = p.image ? `<div><img src="${{p.image}}" alt="${{title}}" /></div>` : '';
         const popup = `
             <div>
@@ -250,40 +250,40 @@ def export_poi_map():
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-        if not valid_points:
-            raise HTTPException(status_code=404, detail="No valid points of interest with images found")
-        
-        buffer = BytesIO()
-        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr("index.html", build_export_html([p for p, _ in valid_points]))
+    if not valid_points:
+        raise HTTPException(status_code=404, detail="No valid points of interest with images found")
 
-            geojson = {
-                "type": "FeatureCollection",
-                "features": [
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [point.longitude, point.latitude]
-                        },
-                        "properties": {
-                            "name": point.name,
-                            "description": point.description,
-                            "image": f"images/{image_path.name}"
-                        }
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("index.html", build_export_html([p for p, _ in valid_points]))
+
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [point.longitude, point.latitude]
+                    },
+                    "properties": {
+                        "name": point.name,
+                        "description": point.description,
+                        "image": f"images/{image_path.name}"
                     }
-                    for point, image_path in valid_points
-                ]
-            }
+                }
+                for point, image_path in valid_points
+            ]
+        }
 
-            archive.writestr("points.geojson", json.dumps(geojson, indent=2))
+        archive.writestr("points.geojson", json.dumps(geojson, indent=2))
 
-            for point, image_path in valid_points:
-                archive.write(image_path, f"images/{image_path.name}")
+        for point, image_path in valid_points:
+            archive.write(image_path, f"images/{image_path.name}")
 
-            buffer.seek(0)
-            return StreamingResponse(
-                buffer,
-                media_type="application/zip",
-                headers={"Content-Disposition": "attachment; filename=poi_map_export.zip"}
-            )
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=poi_map_export.zip"}
+    )
