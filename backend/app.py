@@ -3,7 +3,6 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, Form, File
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
@@ -20,8 +19,6 @@ import shutil
 from .models import PointOfInterest
 
 import json
-import zipfile
-from io import BytesIO
 from pathlib import Path
 from fastapi.responses import StreamingResponse
 from sqlmodel import select
@@ -177,119 +174,6 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         session.commit()
         session.refresh(point)
         return {"status": "saved", "id": point.id}
-    
-def build_export_html(points):
-    exported_points = []
-    for point in points:
-        image_name = Path(point.picture_path).name if point.picture_path else None
-        exported_points.append({
-            "lat": point.latitude,
-            "lon": point.longitude,
-            "name": point.name or "",
-            "description": point.description or "",
-            "image": f"images/{image_name}" if image_name else None
-        })
-
-    points_json = json.dumps(exported_points, indent=2)
-
-    return f"""<!doctype html>
-    <html lang="en">
-    <head>
-        <meta charset="utf-8" />
-        <title>POI Map Export</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <style>
-            body, html {{ margin: 0; padding: 0; height: 100%; }}
-            #map {{ width: 100%; height: 100%; }}
-            .leaflet-popup-content img {{ max-width:180px; max-height:180px; display:block; margin-top:8px; }}
-        </style>
-        </head>
-        <body>
-        <div id="map"></div>
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <script>
-        const pointsData = {points_json};
-        const map = L.map('map').setView([20, 0], 2);
-        L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            maxZoom: 19,
-            attribution: '&copy; OpenStreetMap contributors'
-        }}).addTo(map);
-
-        const markers = [];
-        pointsData.forEach(p => {{
-        const title = p.name || p.description || 'POI';
-        const descriptionHtml = p.description ? `<div style="margin-top:4px;">${{p.description}}</div>` : '';
-        const imageHtml = p.image ? `<div><img src="${{p.image}}" alt="${{title}}" /></div>` : '';
-        const popup = `
-            <div>
-            <strong>${{title}}</strong>
-            ${{descriptionHtml}}
-            ${{imageHtml}}
-            </div>
-        `;
-        const marker = L.marker([p.lat, p.lon]).addTo(map).bindPopup(popup);
-        markers.push(marker);
-        }});
-        if (markers.length > 0) {{
-            const group = L.featureGroup(markers);
-            map.fitBounds(group.getBounds(), {{ padding: [20, 20] }});
-        }}
-        </script>
-    </body>
-    </html>"""
-    
-@app.get("/export-poi-map")
-def export_poi_map():
-    with Session(points_engine) as session:
-        statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
-        points = session.exec(statement).all()
-
-    valid_points = []
-    for point in points:
-        if not point.picture_path:
-            continue
-        image_path = Path(point.picture_path)
-        if image_path.is_file():
-            valid_points.append((point, image_path))
-
-    if not valid_points:
-        raise HTTPException(status_code=404, detail="No valid points of interest with images found")
-
-    buffer = BytesIO()
-    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("index.html", build_export_html([p for p, _ in valid_points]))
-
-        geojson = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [point.longitude, point.latitude]
-                    },
-                    "properties": {
-                        "name": point.name,
-                        "description": point.description,
-                        "image": f"images/{image_path.name}"
-                    }
-                }
-                for point, image_path in valid_points
-            ]
-        }
-
-        archive.writestr("points.geojson", json.dumps(geojson, indent=2))
-
-        for point, image_path in valid_points:
-            archive.write(image_path, f"images/{image_path.name}")
-
-    buffer.seek(0)
-    return StreamingResponse(
-        buffer,
-        media_type="application/zip",
-        headers={"Content-Disposition": "attachment; filename=poi_map_export.zip"}
-    )
 
 
 def generate_svg_map(points_with_images):
