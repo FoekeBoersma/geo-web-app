@@ -94,23 +94,27 @@ export async function fetchPoints() {
     return await res.json();
 }
 
-export async function exportPoiMapSvg() {
-    const res = await fetch("http://127.0.0.1:8000/export-poi-map-svg");
-
-    if (!res.ok) {
+export async function exportMapAsSVG(route){
+    const res = await fetch("http://127.0.0.1:8000/export-map-svg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ route })
+    });
+    if(!res.ok) {
         const errorText = await res.text();
-        throw new Error(`Failed to export POI map SVG: ${res.status} ${errorText}`);
+        throw new Error(`Failed to export map SVG: ${res.status} ${errorText}`);
     }
 
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
-    a.href = url;
-    a.download = "poi-map-export.svg";
+    a.href = url
+    a.download = "map-export-pois-route.svg";
     document.body.appendChild(a);
     a.click();
     a.remove();
 
     URL.revokeObjectURL(url);
+
 }
