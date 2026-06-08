@@ -298,10 +298,10 @@ def generate_svg_map(points_with_images, route_geojson=None):
         svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{map_height}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
         svg_lines.append(f'<line x1="0" y1="{y}" x2="{map_width}" y2="{y}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
     
-    # Draw route if provided'
+    # Draw route if provided
     if route_geojson:
         try:
-            route_coords = route_geojson.get("features", [{}][0].get("geometry", {}).get("coordinates", []))
+            route_coords = route_geojson.get("features", [{}])[0].get("geometry", {}).get("coordinates", [])
             if route_coords:
                 # convert route coordinates to SVG path
                 path_points = []
@@ -366,7 +366,7 @@ def generate_svg_map(points_with_images, route_geojson=None):
 @app.post("/export-map-svg")
 def export_poi_map_svg(payload: dict):
     """Export POI and route map with embedded pictures as SVG"""
-    route_geojson = payload.get("route_geojson")
+    route_geojson = payload.get("route")
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
         points = session.exec(statement).all()
