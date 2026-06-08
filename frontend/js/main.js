@@ -1,4 +1,4 @@
-import { fetchPlace, fetchRoute, fetchPoints, exportPoiMapSvg } from './api.js';
+import { fetchPlace, fetchRoute, fetchPoints, exportMapAsSVG } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { map, showPointsOfInterest } from "./map.js";
@@ -10,7 +10,7 @@ const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
-const exportMapSvgBtn = document.getElementById('export-map-svg-btn');
+const exportMapSvgBtn = document.getElementById('export-map-svg');
 
 
 exportMapSvgBtn.addEventListener('click', async() => {
