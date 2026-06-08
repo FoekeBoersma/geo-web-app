@@ -176,8 +176,8 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         return {"status": "saved", "id": point.id}
 
 
-def generate_svg_map(points_with_images):
-    """Generate SVG with basemap, numbered POI markers, and linked pictures"""
+def generate_svg_map(points_with_images, route_geojson=None):
+    """Generate SVG with basemap, numbered POI markers, routing (optional) and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
     
@@ -298,6 +298,25 @@ def generate_svg_map(points_with_images):
         svg_lines.append(f'<line x1="{x}" y1="0" x2="{x}" y2="{map_height}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
         svg_lines.append(f'<line x1="0" y1="{y}" x2="{map_width}" y2="{y}" stroke="#ffffff" stroke-width="1" opacity="0.6"/>')
     
+    # Draw route if provided'
+    if route_geojson:
+        try:
+            route_coords = route_geojson.get("features", [{}][0].get("geometry", {}).get("coordinates", []))
+            if route_coords:
+                # convert route coordinates to SVG path
+                path_points = []
+                for lon, lat in route_coords:
+                    px, py = deg2px(lon, lat, zoom)
+                    svg_x = (px - (start_tx * 256)) * scale_x
+                    svg_y = (py - (start_ty * 256)) * scale_y
+                    path_points.append(f"{svg_x},{svg_y}")
+
+                if path_points:
+                    path_d = " L ".join(path_points)
+                    svg_lines.append(f'<path d="M {path_d}" fill="none" stroke="#0077cc" stroke-width="4" opacity="0.8"/>')
+        except Exception:
+            pass
+
     # marker placement relative to mosaic origin
     for idx, (point, _) in enumerate(points_with_images):
         px, py = deg2px(point.longitude, point.latitude, zoom)
@@ -344,9 +363,10 @@ def generate_svg_map(points_with_images):
 
 
 
-@app.get("/export-poi-map-svg")
-def export_poi_map_svg():
-    """Export POI map with embedded pictures as SVG"""
+@app.post("/export-map-svg")
+def export_poi_map_svg(payload: dict):
+    """Export POI and route map with embedded pictures as SVG"""
+    route_geojson = payload.get("route_geojson")
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
         points = session.exec(statement).all()
@@ -359,7 +379,7 @@ def export_poi_map_svg():
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-    svg_content = generate_svg_map(valid_points)
+    svg_content = generate_svg_map(valid_points, route_geojson)
     
     return StreamingResponse(
         iter([svg_content]),
