@@ -14,7 +14,7 @@ const exportPoiSvgBtn = document.getElementById('export-poi-svg-btn');
 
 exportPoiSvgBtn.addEventListener('click', async() => {
     try {
-        await exportPoiMapSvg();
+        await exportPoiMapSvg(map);
     } catch (err) {
         console.error("Failed to export POI map SVG:", err);
     }

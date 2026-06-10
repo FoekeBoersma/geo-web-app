@@ -189,7 +189,7 @@ def create_route(origin: str, destination: str, geojson: str):
         return {"status": "saved", "id": route.id}
 
 
-def generate_svg_map(points_with_images):
+def generate_svg_map(points_with_images, zoom=None, bbox=None):
     """Generate SVG with basemap, numbered POI markers, and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
@@ -359,7 +359,13 @@ def generate_svg_map(points_with_images):
 
 @app.get("/export-poi-map-svg")
 def export_poi_map_svg():
-    """Export POI map with embedded pictures as SVG"""
+    """Export POI map with embedded pictures as SVG
+    Add optional query parameters for map state (zoom level, bbox) to render the same view as the frontend map.
+    """
+
+    zoom = request.query_params.get("zoom")
+    bbox = request.query_params.get("bbox")
+    
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
         points = session.exec(statement).all()
@@ -372,7 +378,7 @@ def export_poi_map_svg():
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-    svg_content = generate_svg_map(valid_points)
+    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox)
     
     return StreamingResponse(
         iter([svg_content]),

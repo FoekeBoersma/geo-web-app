@@ -95,7 +95,15 @@ export async function fetchPoints() {
 }
 
 export async function exportPoiMapSvg() {
-    const res = await fetch("http://127.0.0.1:8000/export-poi-map-svg");
+    // pass map state with current zoom level and extent to backend so it can render the same view in SVG
+    const mapObject = window.map;
+    const zoom = mapObject.getZoom();
+    const bbox = mapObject.getBounds().toBBoxString();
+    const res = await fetch("http://127.0.0.1:8000/export-poi-map-svg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ zoom, bbox }),
+    });
 
     if (!res.ok) {
         const errorText = await res.text();
