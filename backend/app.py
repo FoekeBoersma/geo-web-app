@@ -147,7 +147,9 @@ def log_route(payload: RouteLogCreate):
 @app.get("/get-points-of-interest")
 def get_points_of_interest():
     with Session(points_engine) as session:
-        points = session.query(PointOfInterest).all()
+        points = session.exec(
+            select(PointOfInterest)
+        ).all()
         return points
 
 
@@ -218,9 +220,6 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
         min_lat, max_lat = min(latitudes), max(latitudes)
         min_lon, max_lon = min(longitudes), max(longitudes)
 
-    if zoom is None:
-        zoom = choose_zoom()
-
     def deg2tile(lon, lat, z):
         lat_rad = math.radians(lat)
         n = 2.0 ** z
@@ -254,6 +253,10 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
         zoom_offset = math.floor(math.log2(target_scale)) if target_scale > 1 else 0
         computed_zoom = 14 - zoom_offset
         return max(8, min(12, computed_zoom))
+
+    if zoom is None:
+        zoom = choose_zoom()
+
 
     center_xtile, center_ytile = deg2tile(center_lon, center_lat, zoom)
     tile_x = int(center_xtile)
