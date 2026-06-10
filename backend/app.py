@@ -175,6 +175,19 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         session.refresh(point)
         return {"status": "saved", "id": point.id}
 
+@app.post(("/create-route"))
+def create_route(origin: str, destination: str, geojson: str):
+    with Session(route_engine) as session:
+        route  = RouteLog(
+            origin=origin,
+            destination=destination,
+            geojson=geojson
+        )
+        session.add(route)
+        session.commit()
+        session.refresh(route)
+        return {"status": "saved", "id": route.id}
+
 
 def generate_svg_map(points_with_images):
     """Generate SVG with basemap, numbered POI markers, and linked pictures"""
