@@ -1,7 +1,7 @@
-import { fetchPlace, fetchRoute, fetchPoints, exportMapAsSVG } from './api.js';
+import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { map, showPointsOfInterest } from "./map.js";
+import { addRoute, map, showPointsOfInterest, showRoute } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -10,18 +10,21 @@ const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
-const exportMapSvgBtn = document.getElementById('export-map-svg');
+const exportMapViewSvgBtn = document.getElementById('export-map-view-svg-btn');
+const exportPoiExtentSvgBtn = document.getElementById('export-poi-extent-svg-btn');
 
-
-exportMapSvgBtn.addEventListener('click', async() => {
-    if (!state.route) {
-        alert("No route to export. Please fetch a route first.");
-        return;
-    }
+exportMapViewSvgBtn.addEventListener('click', async() => {
     try {
-        await exportMapAsSVG(state.route);
+        await exportMapViewSvg();
     } catch (err) {
-        console.error("Failed to export map SVG: ", err);
+        console.error("Failed to export map SVG:", err);
+    }
+});
+exportPoiExtentSvgBtn.addEventListener('click', async() => {
+    try {
+        await exportPoiExtentSvg();
+    } catch (err) {
+        console.error("Failed to export POI extent SVG:", err);
     }
 })
 searchBtn.addEventListener('click', async() => {
@@ -39,6 +42,20 @@ routeBtn.addEventListener('click', async() => {
         showPointsOfInterest(pois);
     } catch (err) {
         console.error("Failed to fetch points of interest:", err);
+    }
+})();
+
+(async () => {
+    try {
+        const routes = await fetchRoutes();
+        routes.forEach(route => {
+            const geojson = JSON.parse(route.geojson);
+            const coords = geojson.features[0].geometry.coordinates;
+
+            addRoute(coords)
+        })
+    } catch (err) {
+        console.error("Failed to fetch routes:", err);
     }
 })();
 document.getElementById('origin').addEventListener('input', (e) => {

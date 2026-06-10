@@ -122,3 +122,12 @@ function showPointForm(latitude, longitude) {
         document.getElementById('point-form').remove();
     });
 }
+
+export function addRoute(coords) {
+    const latlngs = coords.map(c => [c[1], c[0]]);
+
+    L.polyline(latlngs, {
+        color: "red",
+        weight: 3,
+    }).addTo(routeLayer)
+}

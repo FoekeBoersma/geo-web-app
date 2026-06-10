@@ -1,5 +1,6 @@
 import { showMarkers, showRoute } from "./map.js"
-import { setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
+import { state, setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
+import { map } from "./map.js";
 
 export async function fetchPlace() {
     const place = document.getElementById("place").value.trim(); // "Amsterdam " > "Amsterdam"
@@ -74,6 +75,11 @@ export async function fetchRoute() {
     }
 }
 
+export async function fetchRoutes() {
+    const res = await fetch("http://127.0.0.1:8000/routes");
+    return await res.json();
+}
+
 export async function createPoint(latitude, longitude, name, description, pictureFile) {
     const formData = new FormData();
     formData.append("latitude", latitude);
@@ -94,27 +100,27 @@ export async function fetchPoints() {
     return await res.json();
 }
 
-export async function exportMapAsSVG(route){
-    const res = await fetch("http://127.0.0.1:8000/export-map-svg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ route })
+export function exportMapViewSvg() {
+
+    const zoom = map.getZoom();
+    const bbox = map.getBounds().toBBoxString();
+
+    const params = new URLSearchParams({
+        zoom,
+        bbox,
+        mode: "map",
+        route: JSON.stringify(state.route)
     });
-    if(!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Failed to export map SVG: ${res.status} ${errorText}`);
-    }
 
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
+    window.location.href =
+        `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
+}
 
-    const a = document.createElement('a');
-    a.href = url
-    a.download = "map-export-pois-route.svg";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+export function exportPoiExtentSvg() {
+    const params = new URLSearchParams({
+        mode: "pois"
+    });
 
-    URL.revokeObjectURL(url);
-
+    window.location.href =
+        `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
 }

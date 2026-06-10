@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, UploadFile, Form, File
+from fastapi import FastAPI, HTTPException, Request, UploadFile, Form, File
 from fastapi.staticfiles import StaticFiles
 from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
@@ -147,7 +147,9 @@ def log_route(payload: RouteLogCreate):
 @app.get("/get-points-of-interest")
 def get_points_of_interest():
     with Session(points_engine) as session:
-        points = session.query(PointOfInterest).all()
+        points = session.exec(
+            select(PointOfInterest)
+        ).all()
         return points
 
 
@@ -175,22 +177,47 @@ def create_point_of_interest(latitude: float = Form(...), longitude: float = For
         session.refresh(point)
         return {"status": "saved", "id": point.id}
 
+@app.post(("/create-route"))
+def create_route(origin: str, destination: str, geojson: str):
+    with Session(route_engine) as session:
+        route  = RouteLog(
+            origin=origin,
+            destination=destination,
+            geojson=geojson
+        )
+        session.add(route)
+        session.commit()
+        session.refresh(route)
+        return {"status": "saved", "id": route.id}
+    
 
-def generate_svg_map(points_with_images, route_geojson=None):
-    """Generate SVG with basemap, numbered POI markers, routing (optional) and linked pictures"""
+@app.get("/routes")
+def get_routes():
+    with Session(route_engine) as session:
+        return session.exec(select(RouteLog)).all()
+
+
+def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None, route_coords=None):
+    """Generate SVG with basemap, numbered POI markers, and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
-    
-    # Determine center point and zoom for tile background
-    latitudes = [p.latitude for p, _ in points_with_images]
-    longitudes = [p.longitude for p, _ in points_with_images]
-    center_lat = sum(latitudes) / len(latitudes)
-    center_lon = sum(longitudes) / len(longitudes)
-    min_lat, max_lat = min(latitudes), max(latitudes)
-    min_lon, max_lon = min(longitudes), max(longitudes)
 
     map_width = 1200
     map_height = 600
+
+    use_map_view = mode == "map" and bbox
+    if use_map_view:
+        min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
+        center_lon = (min_lon + max_lon) / 2
+        center_lat = (min_lat + max_lat) / 2
+    else:
+        # Fallback: calculate from POI locations
+        latitudes = [p.latitude for p, _ in points_with_images]
+        longitudes = [p.longitude for p, _ in points_with_images]
+        center_lat = sum(latitudes) / len(latitudes)
+        center_lon = sum(longitudes) / len(longitudes)
+        min_lat, max_lat = min(latitudes), max(latitudes)
+        min_lon, max_lon = min(longitudes), max(longitudes)
 
     def deg2tile(lon, lat, z):
         lat_rad = math.radians(lat)
@@ -226,7 +253,10 @@ def generate_svg_map(points_with_images, route_geojson=None):
         computed_zoom = 14 - zoom_offset
         return max(8, min(12, computed_zoom))
 
-    zoom = choose_zoom()
+    if zoom is None:
+        zoom = choose_zoom()
+
+
     center_xtile, center_ytile = deg2tile(center_lon, center_lat, zoom)
     tile_x = int(center_xtile)
     tile_y = int(center_ytile)
@@ -290,6 +320,16 @@ def generate_svg_map(points_with_images, route_geojson=None):
         svg_lines.append(f'<image x="{x_svg}" y="{y_svg}" width="{tile_w_svg}" height="{tile_h_svg}" href="data:image/png;base64,{tb64}" preserveAspectRatio="none"/>')
     
     svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="none" stroke="#333" stroke-width="2"/>')
+
+    if route_coords:
+        points = []
+        for lon, lat in route_coords:
+            px, py = deg2px(lon, lat, zoom)
+            svg_x = (px - (start_tx * 256)) * scale_x
+            svg_y = (py - (start_ty * 256)) * scale_y
+            points.append(f"{svg_x},{svg_y}")
+
+        svg_lines.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="#0074d9" stroke-width="4"/>')
     
     # Draw simple latitude/longitude grid lines
     for i in range(1, 4):
@@ -363,10 +403,17 @@ def generate_svg_map(points_with_images, route_geojson=None):
 
 
 
-@app.post("/export-map-svg")
-def export_poi_map_svg(payload: dict):
-    """Export POI and route map with embedded pictures as SVG"""
-    route_geojson = payload.get("route")
+@app.get("/export-poi-map-svg")
+def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, mode: str = "map", route: Optional[str] = None):
+    """Export POI map with embedded pictures as SVG
+    Add optional query parameters for map state (zoom level, bbox) to render the same view as the frontend map.
+    """
+
+    route_coords = None
+    if route:
+        route_json = json.loads(route)
+        route_coords = route_json["features"][0]["geometry"]["coordinates"]
+    
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
         points = session.exec(statement).all()
@@ -379,7 +426,7 @@ def export_poi_map_svg(payload: dict):
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-    svg_content = generate_svg_map(valid_points, route_geojson)
+    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox, mode=mode, route_coords=route_coords)
     
     return StreamingResponse(
         iter([svg_content]),
