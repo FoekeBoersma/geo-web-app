@@ -194,16 +194,27 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
     
-    # Determine center point and zoom for tile background
-    latitudes = [p.latitude for p, _ in points_with_images]
-    longitudes = [p.longitude for p, _ in points_with_images]
-    center_lat = sum(latitudes) / len(latitudes)
-    center_lon = sum(longitudes) / len(longitudes)
-    min_lat, max_lat = min(latitudes), max(latitudes)
-    min_lon, max_lon = min(longitudes), max(longitudes)
+    if bbox and zoom:
+        bbox_parts = bbox.split(",") 
+        min_lon = float(bbox_parts[0]) # in format: "minLon,minLat,maxLon,maxLat"
+        min_lat = float(bbox_parts[1])
+        max_lon = float(bbox_parts[2])
+        max_lat = float(bbox_parts[3])
+        center_lon = (min_lon + max_lon) / 2
+        center_lat = (min_lat + max_lat) / 2
+        zoom = int(zoom)
 
-    map_width = 1200
-    map_height = 600
+    else:
+        # Fallback: calculate from POI locations
+        latitudes = [p.latitude for p, _ in points_with_images]
+        longitudes = [p.longitude for p, _ in points_with_images]
+        center_lat = sum(latitudes) / len(latitudes)
+        center_lon = sum(longitudes) / len(longitudes)
+        min_lat, max_lat = min(latitudes), max(latitudes)
+        min_lon, max_lon = min(longitudes), max(longitudes)
+
+        map_width = 1200
+        map_height = 600
 
     def deg2tile(lon, lat, z):
         lat_rad = math.radians(lat)
@@ -239,7 +250,6 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
         computed_zoom = 14 - zoom_offset
         return max(8, min(12, computed_zoom))
 
-    zoom = choose_zoom()
     center_xtile, center_ytile = deg2tile(center_lon, center_lat, zoom)
     tile_x = int(center_xtile)
     tile_y = int(center_ytile)
