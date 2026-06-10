@@ -1,5 +1,6 @@
 import { showMarkers, showRoute } from "./map.js"
 import { setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
+import { map } from "./map.js";
 
 export async function fetchPlace() {
     const place = document.getElementById("place").value.trim(); // "Amsterdam " > "Amsterdam"
@@ -94,12 +95,25 @@ export async function fetchPoints() {
     return await res.json();
 }
 
-export function exportPoiMapSvg() {
-    const mapObject = window.map;
-    const zoom = mapObject.getZoom();
-    const bbox = mapObject.getBounds().toBBoxString();
+export function exportMapViewSvg() {
 
-    const params = new URLSearchParams({ zoom, bbox });
+    const zoom = map.getZoom();
+    const bbox = map.getBounds().toBBoxString();
+
+    const params = new URLSearchParams({
+        zoom,
+        bbox,
+        mode: "map"
+    });
+
+    window.location.href =
+        `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
+}
+
+export function exportPoiExtentSvg() {
+    const params = new URLSearchParams({
+        mode: "pois"
+    });
 
     window.location.href =
         `http://127.0.0.1:8000/export-poi-map-svg?${params}`;

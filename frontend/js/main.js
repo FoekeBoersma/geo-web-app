@@ -1,4 +1,4 @@
-import { fetchPlace, fetchRoute, fetchPoints, exportPoiMapSvg } from './api.js';
+import { fetchPlace, fetchRoute, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { map, showPointsOfInterest } from "./map.js";
@@ -10,13 +10,21 @@ const searchBtn = document.getElementById('search');
 const routeBtn = document.getElementById('route-btn');
 const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
-const exportPoiSvgBtn = document.getElementById('export-poi-svg-btn');
+const exportMapViewSvgBtn = document.getElementById('export-map-view-svg-btn');
+const exportPoiExtentSvgBtn = document.getElementById('export-poi-extent-svg-btn');
 
-exportPoiSvgBtn.addEventListener('click', async() => {
+exportMapViewSvgBtn.addEventListener('click', async() => {
     try {
-        await exportPoiMapSvg(map);
+        await exportMapViewSvg();
     } catch (err) {
-        console.error("Failed to export POI map SVG:", err);
+        console.error("Failed to export map SVG:", err);
+    }
+});
+exportPoiExtentSvgBtn.addEventListener('click', async() => {
+    try {
+        await exportPoiExtentSvg();
+    } catch (err) {
+        console.error("Failed to export POI extent SVG:", err);
     }
 });
 searchBtn.addEventListener('click', async() => {

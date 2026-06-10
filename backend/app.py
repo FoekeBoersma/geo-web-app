@@ -191,7 +191,7 @@ def create_route(origin: str, destination: str, geojson: str):
         return {"status": "saved", "id": route.id}
 
 
-def generate_svg_map(points_with_images, zoom=None, bbox=None):
+def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None):
     """Generate SVG with basemap, numbered POI markers, and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
@@ -199,18 +199,11 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
     map_width = 1200
     map_height = 600
 
-    if bbox is not None:
-        bbox_parts = bbox.split(",")
-        if len(bbox_parts) != 4:
-            raise HTTPException(status_code=400, detail="Invalid bbox format")
-        min_lon = float(bbox_parts[0])  # format: "minLon,minLat,maxLon,maxLat"
-        min_lat = float(bbox_parts[1])
-        max_lon = float(bbox_parts[2])
-        max_lat = float(bbox_parts[3])
+    use_map_view = mode == "map" and bbox
+    if use_map_view:
+        min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
         center_lon = (min_lon + max_lon) / 2
         center_lat = (min_lat + max_lat) / 2
-        if zoom is not None:
-            zoom = int(zoom)
     else:
         # Fallback: calculate from POI locations
         latitudes = [p.latitude for p, _ in points_with_images]
@@ -376,7 +369,7 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None):
 
 
 @app.get("/export-poi-map-svg")
-def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None):
+def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, mode: str = "map"):
     """Export POI map with embedded pictures as SVG
     Add optional query parameters for map state (zoom level, bbox) to render the same view as the frontend map.
     """
@@ -393,7 +386,7 @@ def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None):
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox)
+    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox, mode=mode)
     
     return StreamingResponse(
         iter([svg_content]),
