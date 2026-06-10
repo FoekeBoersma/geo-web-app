@@ -75,6 +75,11 @@ export async function fetchRoute() {
     }
 }
 
+export async function fetchRoutes() {
+    const res = await fetch("http://127.0.0.1:8000/routes");
+    return await res.json();
+}
+
 export async function createPoint(latitude, longitude, name, description, pictureFile) {
     const formData = new FormData();
     formData.append("latitude", latitude);

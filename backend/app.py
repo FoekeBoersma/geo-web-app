@@ -189,6 +189,12 @@ def create_route(origin: str, destination: str, geojson: str):
         session.commit()
         session.refresh(route)
         return {"status": "saved", "id": route.id}
+    
+
+@app.get("/routes")
+def get_routes():
+    with Session(route_engine) as session:
+        return session.exec(select(RouteLog)).all()
 
 
 def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None, route_coords=None):

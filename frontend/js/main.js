@@ -1,7 +1,7 @@
-import { fetchPlace, fetchRoute, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
+import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { map, showPointsOfInterest } from "./map.js";
+import { map, showPointsOfInterest, showRoute } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -42,6 +42,20 @@ routeBtn.addEventListener('click', async() => {
         showPointsOfInterest(pois);
     } catch (err) {
         console.error("Failed to fetch points of interest:", err);
+    }
+})();
+
+(async () => {
+    try {
+        const routes = await fetchRoutes();
+        routes.forEach(route => {
+            const geojson = JSON.parse(route.geojson);
+            const coords = geojson.features[0].geometry.coordinates;
+
+            showRoute(coords)
+        })
+    } catch (err) {
+        console.error("Failed to fetch routes:", err);
     }
 })();
 document.getElementById('origin').addEventListener('input', (e) => {
