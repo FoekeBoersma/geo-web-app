@@ -1,5 +1,5 @@
 import { showMarkers, showRoute } from "./map.js"
-import { setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
+import { state, setOrigin, setDestination, setRoute, setLoading, setError } from "./state.js";
 import { map } from "./map.js";
 
 export async function fetchPlace() {
@@ -103,7 +103,8 @@ export function exportMapViewSvg() {
     const params = new URLSearchParams({
         zoom,
         bbox,
-        mode: "map"
+        mode: "map",
+        route: JSON.stringify(state.route)
     });
 
     window.location.href =

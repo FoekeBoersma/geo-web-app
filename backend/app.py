@@ -191,7 +191,7 @@ def create_route(origin: str, destination: str, geojson: str):
         return {"status": "saved", "id": route.id}
 
 
-def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None):
+def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None, route_coords=None):
     """Generate SVG with basemap, numbered POI markers, and linked pictures"""
     if not points_with_images:
         raise HTTPException(status_code=404, detail="No points of interest with images found.")
@@ -314,6 +314,16 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None):
         svg_lines.append(f'<image x="{x_svg}" y="{y_svg}" width="{tile_w_svg}" height="{tile_h_svg}" href="data:image/png;base64,{tb64}" preserveAspectRatio="none"/>')
     
     svg_lines.append(f'<rect x="0" y="0" width="{map_width}" height="{map_height}" fill="none" stroke="#333" stroke-width="2"/>')
+
+    if route_coords:
+        points = []
+        for lon, lat in route_coords:
+            px, py = deg2px(lon, lat, zoom)
+            svg_x = (px - (start_tx * 256)) * scale_x
+            svg_y = (py - (start_ty * 256)) * scale_y
+            points.append(f"{svg_x},{svg_y}")
+
+        svg_lines.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="#0074d9" stroke-width="4"/>')
     
     # Draw simple latitude/longitude grid lines
     for i in range(1, 4):
@@ -369,10 +379,15 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None):
 
 
 @app.get("/export-poi-map-svg")
-def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, mode: str = "map"):
+def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, mode: str = "map", route: Optional[str] = None):
     """Export POI map with embedded pictures as SVG
     Add optional query parameters for map state (zoom level, bbox) to render the same view as the frontend map.
     """
+
+    route_coords = None
+    if route:
+        route_json = json.loads(route)
+        route_coords = route_json["features"][0]["geometry"]["coordinates"]
     
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
@@ -386,7 +401,7 @@ def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, m
         if image_path.is_file():
             valid_points.append((point, image_path))
 
-    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox, mode=mode)
+    svg_content = generate_svg_map(valid_points, zoom=zoom, bbox=bbox, mode=mode, route_coords=route_coords)
     
     return StreamingResponse(
         iter([svg_content]),
