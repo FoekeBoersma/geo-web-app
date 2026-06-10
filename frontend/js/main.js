@@ -1,7 +1,7 @@
 import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { map, showPointsOfInterest, showRoute } from "./map.js";
+import { addRoute, map, showPointsOfInterest, showRoute } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -52,7 +52,7 @@ routeBtn.addEventListener('click', async() => {
             const geojson = JSON.parse(route.geojson);
             const coords = geojson.features[0].geometry.coordinates;
 
-            showRoute(coords)
+            addRoute(coords)
         })
     } catch (err) {
         console.error("Failed to fetch routes:", err);
