@@ -26,7 +26,7 @@ exportPoiExtentSvgBtn.addEventListener('click', async() => {
     } catch (err) {
         console.error("Failed to export POI extent SVG:", err);
     }
-});
+})
 searchBtn.addEventListener('click', async() => {
      await fetchPlace();
      updateUI();
