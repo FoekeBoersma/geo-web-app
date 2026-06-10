@@ -99,11 +99,8 @@ export async function exportPoiMapSvg() {
     const mapObject = window.map;
     const zoom = mapObject.getZoom();
     const bbox = mapObject.getBounds().toBBoxString();
-    const res = await fetch("http://127.0.0.1:8000/export-poi-map-svg", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ zoom, bbox }),
-    });
+    const params = new URLSearchParams({ zoom, bbox });
+    const res = await fetch(`http://127.0.0.1:8000/export-poi-map-svg?${params}`);
 
     if (!res.ok) {
         const errorText = await res.text();
