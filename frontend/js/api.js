@@ -100,27 +100,25 @@ export async function fetchPoints() {
     return await res.json();
 }
 
-export function exportMapViewSvg() {
-
+function buildExportUrl(mode) {
     const zoom = map.getZoom();
-    const bbox = map.getBounds().toBBoxString();
+    const bounds = map.getBounds();
+    const bbox = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()].join(",");
 
     const params = new URLSearchParams({
-        zoom,
+        zoom: String(zoom),
         bbox,
-        mode: "map",
+        mode,
         route: JSON.stringify(state.route)
     });
 
-    window.location.href =
-        `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
+    return `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
+}
+
+export function exportMapViewSvg() {
+    window.location.href = buildExportUrl("map");
 }
 
 export function exportPoiExtentSvg() {
-    const params = new URLSearchParams({
-        mode: "pois"
-    });
-
-    window.location.href =
-        `http://127.0.0.1:8000/export-poi-map-svg?${params}`;
+    window.location.href = buildExportUrl("pois");
 }

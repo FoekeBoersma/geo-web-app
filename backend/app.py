@@ -205,19 +205,21 @@ def generate_svg_map(points_with_images, zoom=None, bbox=None, mode=None, route_
     map_width = 1200
     map_height = 600
 
-    use_map_view = mode == "map" and bbox
+    latitudes = [p.latitude for p, _ in points_with_images]
+    longitudes = [p.longitude for p, _ in points_with_images]
+    poi_min_lat, poi_max_lat = min(latitudes), max(latitudes)
+    poi_min_lon, poi_max_lon = min(longitudes), max(longitudes)
+
+    use_map_view = bool(bbox)
     if use_map_view:
         min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(","))
         center_lon = (min_lon + max_lon) / 2
         center_lat = (min_lat + max_lat) / 2
     else:
-        # Fallback: calculate from POI locations
-        latitudes = [p.latitude for p, _ in points_with_images]
-        longitudes = [p.longitude for p, _ in points_with_images]
+        min_lat, max_lat = poi_min_lat, poi_max_lat
+        min_lon, max_lon = poi_min_lon, poi_max_lon
         center_lat = sum(latitudes) / len(latitudes)
         center_lon = sum(longitudes) / len(longitudes)
-        min_lat, max_lat = min(latitudes), max(latitudes)
-        min_lon, max_lon = min(longitudes), max(longitudes)
 
     def deg2tile(lon, lat, z):
         lat_rad = math.radians(lat)
@@ -392,8 +394,15 @@ def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, m
 
     route_coords = None
     if route:
-        route_json = json.loads(route)
-        route_coords = route_json["features"][0]["geometry"]["coordinates"]
+        try:
+            route_json = json.loads(route)
+            if isinstance(route_json, dict):
+                features = route_json.get("features") or []
+                if features:
+                    geometry = features[0].get("geometry") or {}
+                    route_coords = geometry.get("coordinates")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            route_coords = None
     
     with Session(points_engine) as session:
         statement = select(PointOfInterest).where(PointOfInterest.picture_path != None)
