@@ -30,15 +30,23 @@ def get_place_center(place_name: str) -> tuple[float, float]:
     centroid = gdf.iloc[0].geometry.centroid
     return centroid.y, centroid.x  # Return as (latitude, longitude)
 
-def fetch_isochrone(place_name: str, minutes: int = 15, network_type: str = "walk") -> dict:
-    """
-    """
-    # Get the center of the place
-    lat, lon = get_place_center(place_name)
-    speed_kph = 5 # Average walking speed in kilometers per hour
+def _build_isochrone_from_point(lat: float, lon: float, minutes = int, network_type: str = "walk") -> dict:
+    if minutes <= 0:
+        raise ValueError("Minutes must be a positive integer.")
+
+    allowed = {"walk", "bike", "drive"}
+
+    if network_type not in allowed:
+        raise ValueError(f"Invalid network_type '{network_type}'. Allowed values are: {allowed}")
+
+    speed_kph_by_type = {
+        "walk": 5.0,
+        "bike": 15.0,
+        "drive": 50.0
+    }
+    speed_kph = speed_kph_by_type[network_type]
     meters_per_minute = (speed_kph * 1000) / 60
 
-    # Calculate the distance in meters
     graph_dist = int(minutes * meters_per_minute)
 
     # Download and create a graph within some distance of a lat-lon point
@@ -65,11 +73,10 @@ def fetch_isochrone(place_name: str, minutes: int = 15, network_type: str = "wal
         key=lambda n: (G.nodes[n]["y"] - lat) ** 2 + (G.nodes[n]["x"] - lon) ** 2
     )
 
-    # Build the reachable subgraph within N minutes
     subgraph = nx.ego_graph(G, center_node, radius=minutes, distance="travel_time")
     if subgraph.number_of_nodes() == 0:
-        raise ValueError(f"No reachable area found within {minutes} minutes from '{place_name}'.")
-    
+        raise ValueError(f"No reachable area found within {minutes} minutes from the given point.") 
+
     # Convert subgraph nodes to a polygon
     nodes_gdf = ox.graph_to_gdfs(subgraph, edges=False)
     polygon = nodes_gdf.geometry.unary_union.convex_hull
@@ -95,3 +102,11 @@ def fetch_isochrone(place_name: str, minutes: int = 15, network_type: str = "wal
             "lon": lon
         }
     }
+
+def fetch_isochrone(place_name: str, minutes: int, network_type: str = "walk") -> dict:
+    lat, lon = get_place_center(place_name)
+    geojson = _build_isochrone_from_point(lat, lon, minutes, network_type)
+    geojson["features"][0]["properties"]["place"] = place_name
+    return geojson
+
+
