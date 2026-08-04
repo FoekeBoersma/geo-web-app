@@ -7,7 +7,7 @@ from fastapi.concurrency import asynccontextmanager
 from sqlmodel import Session, SQLModel
 
 from backend.db import init_db
-from .fetch_osm_data import fetch_osm_data
+from .fetch_osm_data import fetch_osm_data, fetch_isochrone, get_place_center
 from fastapi.middleware.cors import CORSMiddleware
 import httpx # useful for async requests; parallel API calls; potentially faster response times
 from dotenv import load_dotenv
@@ -423,3 +423,19 @@ def export_poi_map_svg(zoom: Optional[int] = None, bbox: Optional[str] = None, m
         media_type="image/svg+xml",
         headers={"Content-Disposition": "attachment; filename=poi-map-export.svg"}
     )
+
+@app.get("/fetch_isochrone")
+def isochrone_endpoint(placename: str, minutes: int = 15, network_type: str = "walk"):
+    try:
+        data = fetch_isochrone(placename, minutes, network_type)
+        return {"status": 200, "data": data}
+    except Exception as e:
+        return {"status": 500, "error": str(e)}
+
+@app.get("/get_place_center")
+def get_place_center_endpoint(placename: str):
+    try:
+        lat, lon = get_place_center(placename)
+        return { "status": 200, "data": {"lat": lat, "lon": lon} }
+    except Exception as e:
+        return {"status": 500, "error": str(e)}
