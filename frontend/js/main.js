@@ -1,7 +1,7 @@
 import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { addRoute, map, showPointsOfInterest, showRoute } from "./map.js";
+import { addRoute, map, showPointsOfInterest, showRoute, showIsochrone } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -12,6 +12,7 @@ const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
 const exportMapViewSvgBtn = document.getElementById('export-map-view-svg-btn');
 const exportPoiExtentSvgBtn = document.getElementById('export-poi-extent-svg-btn');
+const isochroneBtn = document.getElementById('isochrone-btn');
 
 exportMapViewSvgBtn.addEventListener('click', async() => {
     try {
@@ -35,6 +36,10 @@ routeBtn.addEventListener('click', async() => {
     await fetchRoute();
     updateUI();
 });
+isochroneBtn.addEventListener('click', async() => {
+    await showIsochrone();
+    updateUI();
+})
 
 (async () => {
     try {
