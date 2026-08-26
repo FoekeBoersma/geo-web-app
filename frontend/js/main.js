@@ -1,4 +1,4 @@
-import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
+import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg, fetchIsochroneFromPlace } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
 import { addRoute, map, showPointsOfInterest, showRoute, showIsochrone } from "./map.js";
@@ -37,8 +37,15 @@ routeBtn.addEventListener('click', async() => {
     updateUI();
 });
 isochroneBtn.addEventListener('click', async() => {
-    await showIsochrone();
+    try {
+    const isochrone = await fetchIsochroneFromPlace();
+    showIsochrone(isochrone);
+
     updateUI();
+    } catch (err) {
+        console.error("Failed to fetch isochrone:", err);
+        alert("Failed to fetch isochrone. Please check the console for details.");
+    }
 })
 
 (async () => {
