@@ -30,7 +30,7 @@ def get_place_center(place_name: str) -> tuple[float, float]:
     centroid = gdf.iloc[0].geometry.centroid
     return centroid.y, centroid.x  # Return as (latitude, longitude)
 
-def _build_isochrone_from_point(lat: float, lon: float, minutes = int, network_type: str = "walk") -> dict:
+def _build_isochrone_from_point(lat: float, lon: float, place_name: str, minutes: int, network_type: str = "walk") -> dict:
     if minutes <= 0:
         raise ValueError("Minutes must be a positive integer.")
 
@@ -79,7 +79,7 @@ def _build_isochrone_from_point(lat: float, lon: float, minutes = int, network_t
 
     # Convert subgraph nodes to a polygon
     nodes_gdf = ox.graph_to_gdfs(subgraph, edges=False)
-    polygon = nodes_gdf.geometry.unary_union.convex_hull
+    polygon = nodes_gdf.geometry.union_all().convex_hull
     if polygon.is_empty:
         raise ValueError(f"Could not create an isochrone polygon for the reachable area from '{place_name}'.")
 
@@ -105,8 +105,6 @@ def _build_isochrone_from_point(lat: float, lon: float, minutes = int, network_t
 
 def fetch_isochrone(place_name: str, minutes: int, network_type: str = "walk") -> dict:
     lat, lon = get_place_center(place_name)
-    geojson = _build_isochrone_from_point(lat, lon, minutes, network_type)
+    geojson = _build_isochrone_from_point(lat, lon, place_name, minutes, network_type)
     geojson["features"][0]["properties"]["place"] = place_name
     return geojson
-
-
