@@ -124,7 +124,7 @@ export function exportPoiExtentSvg() {
 }
 
 export async function fetchIsochroneFromPlace(place, minutes = 15, networkType = "walk") {
-    const url = "http://127.0.0.1:8000/isochrone"
+    const url = "http://127.0.0.1:8000/fetch_isochrone"
     + "?place_name=" + encodeURIComponent(place)
     + "&minutes=" + encodeURIComponent(minutes)
     + "&network_type=" + encodeURIComponent(networkType);
