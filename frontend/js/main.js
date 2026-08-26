@@ -38,7 +38,12 @@ routeBtn.addEventListener('click', async() => {
 });
 isochroneBtn.addEventListener('click', async() => {
     try {
-    const isochrone = await fetchIsochroneFromPlace();
+    const place = document.getElementById("place").value.trim();
+    if (!place) {
+        alert("Please enter a place name to fetch isochrone.");
+        return;
+    }
+    const isochrone = await fetchIsochroneFromPlace(place, 15, "drive");
     showIsochrone(isochrone);
 
     updateUI();
