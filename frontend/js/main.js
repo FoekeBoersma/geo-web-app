@@ -1,7 +1,7 @@
-import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg } from './api.js';
+import { fetchPlace, fetchRoute, fetchRoutes, fetchPoints, exportMapViewSvg, exportPoiExtentSvg, fetchIsochroneFromPlace } from './api.js';
 import { updateUI } from './ui.js';
 import { state, setOrigin, setDestination } from "./state.js";
-import { addRoute, map, showPointsOfInterest, showRoute } from "./map.js";
+import { addRoute, map, showPointsOfInterest, showRoute, showIsochrone } from "./map.js";
 
 // initial UI sync
 updateUI();
@@ -12,6 +12,7 @@ const downloadBtn = document.getElementById('download-btn');
 const statusEl = document.getElementById('status');
 const exportMapViewSvgBtn = document.getElementById('export-map-view-svg-btn');
 const exportPoiExtentSvgBtn = document.getElementById('export-poi-extent-svg-btn');
+const isochroneBtn = document.getElementById('isochrone-btn');
 
 exportMapViewSvgBtn.addEventListener('click', async() => {
     try {
@@ -34,6 +35,22 @@ searchBtn.addEventListener('click', async() => {
 routeBtn.addEventListener('click', async() => { 
     await fetchRoute();
     updateUI();
+});
+isochroneBtn.addEventListener('click', async() => {
+    try {
+    const place = document.getElementById("place").value.trim();
+    if (!place) {
+        alert("Please enter a place name to fetch isochrone.");
+        return;
+    }
+    const isochrone = await fetchIsochroneFromPlace(place, 15, "drive");
+    showIsochrone(isochrone);
+
+    updateUI();
+    } catch (err) {
+        console.error("Failed to fetch isochrone:", err);
+        alert("Failed to fetch isochrone. Please check the console for details.");
+    }
 });
 
 (async () => {

@@ -11,6 +11,7 @@ const markersLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map)
 const pointsOfInterestLayer = L.layerGroup().addTo(map);
 const statusEl = document.getElementById('status');
+const isochroneLayer = L.layerGroup().addTo(map);
 
 export function showMarkers(data) {
     statusEl.textContent = 'Loading...';
@@ -130,4 +131,22 @@ export function addRoute(coords) {
         color: "red",
         weight: 3,
     }).addTo(routeLayer)
+}
+
+export function showIsochrone(geojson) {
+    isochroneLayer.clearLayers();
+
+    const layer = L.geoJSON(geojson, {
+        style: {
+            color: "#1b5e20",
+            weight: 2, 
+            fillColor: "#66bb6a",
+            fillOpacity: 0.3,
+        },
+    }).addTo(isochroneLayer);
+
+    const bounds = layer.getBounds();
+    if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [20, 20] });
+    }
 }

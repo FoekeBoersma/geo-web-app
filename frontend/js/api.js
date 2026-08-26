@@ -8,7 +8,7 @@ export async function fetchPlace() {
         setError("Please enter a place name.");
         return;
     }
-    const url = `http://127.0.0.1:8000/fetch_osm_data?placename=${encodeURIComponent(place)}`;
+    const url = `http://127.0.0.1:8000/fetch_osm_data?place_name=${encodeURIComponent(place)}`;
 
     try {
         setLoading(true);
@@ -121,4 +121,20 @@ export function exportMapViewSvg() {
 
 export function exportPoiExtentSvg() {
     window.location.href = buildExportUrl("pois");
+}
+
+export async function fetchIsochroneFromPlace(place, minutes = 15, networkType = "walk") {
+    const url = "http://127.0.0.1:8000/fetch_isochrone"
+    + "?place_name=" + encodeURIComponent(place)
+    + "&minutes=" + encodeURIComponent(minutes)
+    + "&network_type=" + encodeURIComponent(networkType);
+
+    const res = await fetch(url);
+    const payload = await res.json();
+
+    if (!res.ok || payload.status === 500) {
+        throw new Error(payload.error || "Failed to fetch isochrone data.");
+    }
+
+    return payload.data ?? payload;
 }
