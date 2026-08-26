@@ -46,7 +46,7 @@ isochroneBtn.addEventListener('click', async() => {
         console.error("Failed to fetch isochrone:", err);
         alert("Failed to fetch isochrone. Please check the console for details.");
     }
-})
+});
 
 (async () => {
     try {
