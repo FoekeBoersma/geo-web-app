@@ -43,7 +43,9 @@ isochroneBtn.addEventListener('click', async() => {
         alert("Please enter a place name to fetch isochrone.");
         return;
     }
-    const isochrone = await fetchIsochroneFromPlace(place, 15, "drive");
+    const minutes = document.getElementById("minutes-btn").value;
+    const networkType = document.getElementById("network-type-btn").value;
+    const isochrone = await fetchIsochroneFromPlace(place, minutes, networkType);
     showIsochrone(isochrone);
 
     updateUI();
